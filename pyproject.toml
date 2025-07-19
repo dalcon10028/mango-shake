@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "mango-shake-py"
+version = "0.1.0"
+description = ""
+authors = ["dalcon10028 <dalcon10280@gmail.com>"]
+readme = "README.md"
+packages = [
+    { include = "app.py", from = "src" }
+]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+aiohttp = "^3.12.14"
+websockets = "^15.0.1"
+reactivex = "^4.0.4"
+
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.4.1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
