@@ -3,7 +3,7 @@ import logging.config
 from bitget.future_market_client import BitgetFutureMarketClient
 from dependency_injector import containers, providers
 
-from bitget.websocket_public_client import BitgetWebsocketPublicClient
+from bitget.websocket_public_client import BitgetWebsocketClient
 
 
 class Container(containers.DeclarativeContainer):
@@ -22,6 +22,6 @@ class Container(containers.DeclarativeContainer):
     )
 
     bitget_future_websocket_public_client = providers.Factory(
-        BitgetWebsocketPublicClient,
+        BitgetWebsocketClient,
         url=config.bitget.websocket_public_url,
     )

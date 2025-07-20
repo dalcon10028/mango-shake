@@ -1,14 +1,22 @@
 import asyncio
 import json
 import logging
+from typing import List, Optional, Set
 
 from websockets import ConnectionClosed, ConnectionClosedError
 from websockets.asyncio.client import connect
 from websockets.legacy.exceptions import InvalidStatusCode
 
+from bitget.dto.websocket import BaseWsReq, SubscribeReq
+
 logger = logging.getLogger("websockets")
 logger.setLevel(logging.DEBUG)
 logger.addHandler(logging.StreamHandler())
+
+WS_PING = 'ping'
+WS_OP_LOGIN = 'login'
+WS_OP_SUBSCRIBE = "subscribe"
+WS_OP_UNSUBSCRIBE = "unsubscribe"
 
 
 async def _heartbeat(ws):
@@ -17,41 +25,105 @@ async def _heartbeat(ws):
         await asyncio.sleep(30)
 
 
-class BitgetWebsocketPublicClient:
+class BitgetWebsocketClient:
+    """
+    Async WebSocket client for Bitget with automatic reconnect,
+    heartbeat, and subscription management.
+    """
 
-    def __init__(self, url: str, reconnect_max_delay: int = 60):
-        self._ws = connect(url, ping_interval=None,ping_timeout=None)
-        self._reconnect_max_delay = reconnect_max_delay
+    def __init__(
+        self,
+        url: str,
+        reconnect_delay: int = 1,
+        max_reconnect_delay: int = 60,
+        heartbeat_interval: int = 30,
+    ):
+        self._url = url
+        self._reconnect_delay = reconnect_delay
+        self._max_reconnect_delay = max_reconnect_delay
+        self._heartbeat_interval = heartbeat_interval
 
-    async def subscribe_candlestick(self):
-        reconnect_delay = 1
-        async for ws in self._ws:
+        self._ws = None  # type: Optional[asyncio.StreamReader]
+        self._channels: Set[SubscribeReq] = set()
+        self._stop_event = asyncio.Event()
+        self._connected_event = asyncio.Event()
+
+    async def connect(self):
+        delay = self._reconnect_delay
+        while not self._stop_event.is_set():
             try:
-                msg = {
-                    "op": "subscribe",
-                    "args": [
-                        {
-                            "instType": "USDT-FUTURES",
-                            "channel": "candle1m",
-                            "instId": "BTCUSDT"
-                        }
-                    ]
-                }
-                await ws.send(json.dumps(msg))
-
-                ack = json.loads(await ws.recv())
-                if ack.get("event") != "subscribe":
-                    raise RuntimeError(f"Subscribe failed: {ack}")
-
-                asyncio.create_task(_heartbeat(ws))
-
-                async for message in ws:
-                    logger.debug(message)
-            except (ConnectionClosedError, InvalidStatusCode, OSError) as e:
-                logger.warning(f"Connection lost: {e}. Reconnecting in {reconnect_delay}s...")
-                await asyncio.sleep(reconnect_delay)
-                reconnect_delay = min(reconnect_delay * 2, self._reconnect_max_delay)
-
+                logger.info(f"Connecting to {self._url}")
+                async with connect(self._url, ping_interval=None, ping_timeout=None) as ws:
+                    self._ws = ws
+                    self._connected_event.set()
+                    delay = self._reconnect_delay
+                    hb_task = asyncio.create_task(self._heartbeat())
+                    await self._resubscribe_all()
+                    await self._receiver_loop()
+            except ConnectionClosed as e:
+                logger.warning(f"Connection closed: {e}. Reconnect in {delay}s...")
             except Exception as e:
-                logger.exception(f"Unexpected error: {e}")
-                await asyncio.sleep(5)
+                logger.exception(f"Error: {e}. Reconnect in {delay}s...")
+            finally:
+                self._connected_event.clear()
+            await asyncio.sleep(delay)
+            delay = min(delay * 2, self._max_reconnect_delay)
+
+    async def wait_connected(self):
+        await self._connected_event.wait()
+
+    async def _receiver_loop(self):
+        assert self._ws is not None
+        async for raw in self._ws:
+            try:
+                msg = json.loads(raw)
+                logger.debug(f"Received: {msg}")
+            except json.JSONDecodeError:
+                logger.error(f"Invalid JSON: {raw}")
+
+    async def _heartbeat(self):
+        assert self._ws is not None
+        while True:
+            try:
+                await self._ws.send(WS_PING)
+                logger.debug("Ping sent")
+            except Exception as e:
+                logger.warning(f"Heartbeat error: {e}")
+                return
+            await asyncio.sleep(self._heartbeat_interval)
+
+    async def _send(self, op: str, args: List[dict]):
+        if not self._ws:
+            logger.error("Not connected, cannot send")
+            return
+        payload = BaseWsReq(op, args)
+        msg = json.dumps(payload, default=lambda o: o.__dict__)
+        logger.debug(f"Sending: {msg}")
+        await self._ws.send(msg)
+
+    async def subscribe(self, channels: List[SubscribeReq]):
+        new = [ch for ch in channels if ch not in self._channels]
+        if not new:
+            logger.info("No new subscriptions")
+            return
+        self._channels.update(new)
+        await self._send(WS_OP_SUBSCRIBE, [vars(ch) for ch in new])
+
+    async def unsubscribe(self, channels: List[SubscribeReq]):
+        rem = [ch for ch in channels if ch in self._channels]
+        if not rem:
+            logger.info("No subscriptions to remove")
+            return
+        for ch in rem:
+            self._channels.remove(ch)
+        await self._send(WS_OP_UNSUBSCRIBE, [vars(ch) for ch in rem])
+
+    async def _resubscribe_all(self):
+        if self._channels:
+            logger.info(f"Resubscribing: {self._channels}")
+            await self._send(WS_OP_SUBSCRIBE, [vars(ch) for ch in self._channels])
+
+    async def close(self):
+        self._stop_event.set()
+        if self._ws:
+            await self._ws.close()
