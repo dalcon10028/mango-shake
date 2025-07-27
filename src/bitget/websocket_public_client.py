@@ -3,11 +3,11 @@ import json
 import logging
 from typing import List, Optional, Set
 
-from websockets import ConnectionClosed, ConnectionClosedError
+from websockets import ConnectionClosed
 from websockets.asyncio.client import connect
-from websockets.legacy.exceptions import InvalidStatusCode
 
 from bitget.dto.websocket import BaseWsReq, SubscribeReq
+from bitget.stream_manager import BitgetStreamManager
 
 logger = logging.getLogger("websockets")
 logger.setLevel(logging.DEBUG)
@@ -34,17 +34,20 @@ class BitgetWebsocketClient:
     def __init__(
         self,
         url: str,
+        stream_manager: BitgetStreamManager,
         reconnect_delay: int = 1,
         max_reconnect_delay: int = 60,
         heartbeat_interval: int = 30,
     ):
+        self._stream_manager = stream_manager
+
         self._url = url
         self._reconnect_delay = reconnect_delay
         self._max_reconnect_delay = max_reconnect_delay
         self._heartbeat_interval = heartbeat_interval
 
-        self._ws = None  # type: Optional[asyncio.StreamReader]
-        self._channels: Set[SubscribeReq] = set()
+        self._ws: Optional[asyncio.StreamReader] = None
+        self._channels: Set[SubscribeReq] = set(stream_manager.channels)
         self._stop_event = asyncio.Event()
         self._connected_event = asyncio.Event()
 
@@ -76,6 +79,8 @@ class BitgetWebsocketClient:
         assert self._ws is not None
         async for raw in self._ws:
             try:
+                if "pong" == raw:
+                    continue
                 msg = json.loads(raw)
                 logger.debug(f"Received: {msg}")
             except json.JSONDecodeError:

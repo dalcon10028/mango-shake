@@ -1,8 +1,12 @@
 bitget:
   base_url: 'https://api.bitget.com'
-  product_type: 'SUSDT-FUTURES'
   websocket_public_url: 'wss://ws.bitget.com/v2/ws/public'
   websocket_private_url: 'wss://ws.bitget.com/v2/ws/private'
 
-logging:
-  config:
+strategy:
+  squirrel:
+    product_type: 'USDT-FUTURES'
+    intervals:
+      - '5m'
+    universe:
+      - 'BTCUSDT'

@@ -1,3 +1,6 @@
+import dataclasses
+
+
 class BaseWsReq:
 
     def __init__(self, op, args):
@@ -5,13 +8,13 @@ class BaseWsReq:
         self.args = args
 
 
+@dataclasses.dataclass
 class SubscribeReq:
 
     def __init__(self, inst_type, channel, inst_id):
         self.inst_type = inst_type
         self.channel = channel
         self.inst_id = inst_id
-        self.coin = inst_id
 
     def __eq__(self, other) -> bool:
         return self.__dict__ == other.__dict__
