@@ -41,6 +41,8 @@ jobs:
 
       - name: Run daily candle collection
         id: collect
+        env:
+          TZ: Asia/Seoul
         run: |
           # Determine base_date argument if provided via workflow_dispatch
           if [ -n "${{ github.event.inputs.base_date }}" ]; then
@@ -55,6 +57,8 @@ jobs:
         if: always()
         uses: slackapi/slack-github-action@v2.1.1
         with:
+          webhook-type: incoming-webhook
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
           payload: |
             {
               "text": ":chart_with_upwards_trend: Daily Candle Collection Result",
@@ -81,5 +85,3 @@ jobs:
                 }
               ]
             }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
