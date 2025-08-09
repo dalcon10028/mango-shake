@@ -185,3 +185,5 @@ fabric.properties
 # .idea
 .gitsecret/keys/random_seed
 !*.secret
+
+!/src/scripts/
