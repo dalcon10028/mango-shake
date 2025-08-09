@@ -5,6 +5,10 @@ on:
   schedule:
     - cron: '0 1 * * *'
   workflow_dispatch:
+    inputs:
+      base_date:
+        description: 'Base date for collection (YYYY-MM-DD). If omitted, defaults to yesterday.'
+        required: false
 
 jobs:
   collect-and-notify:
@@ -38,7 +42,14 @@ jobs:
       - name: Run daily candle collection
         id: collect
         run: |
-          poetry run python src/scripts/collect_daily_candles.py
+          # Determine base_date argument if provided via workflow_dispatch
+          if [ -n "${{ github.event.inputs.base_date }}" ]; then
+            BD="--base_date ${{ github.event.inputs.base_date }}"
+          else
+            BD=""
+          fi
+          # Execute script with optional base_date
+          poetry run python src/scripts/collect_daily_candles.py $BD
 
       - name: Send Slack notification
         if: always()
