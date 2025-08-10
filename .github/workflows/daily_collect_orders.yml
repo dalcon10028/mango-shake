@@ -51,7 +51,7 @@ jobs:
             BD=""
           fi
           # Execute script with optional base_date
-          poetry run python src/scripts/collect_daily_candles.py $BD
+          poetry run python src/scripts/collect_orders.py $BD
 
       - name: Send Slack notification
         if: always()

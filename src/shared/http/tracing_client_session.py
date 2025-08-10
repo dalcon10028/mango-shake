@@ -5,6 +5,20 @@ import uuid
 import aiohttp
 
 
+# Helper to mask sensitive header values for logging
+def _mask_sensitive_headers(headers: dict) -> dict:
+    """Return a copy of headers with sensitive values masked."""
+    masked = {}
+    for k, v in headers.items():
+        upper_k = k.upper()
+        if upper_k in ("ACCESS-KEY", "ACCESS-SIGN", "ACCESS-PASSPHRASE"):
+            # Fully mask sensitive values
+            masked[k] = "****"
+        else:
+            masked[k] = v
+    return masked
+
+
 logger = logging.getLogger("aiohttp.client")
 
 
@@ -22,6 +36,9 @@ class TracingClientSession(aiohttp.ClientSession):
         headers = kwargs.get("headers", {})
         content_type = headers.get("Content-Type", "")
 
+        # Mask sensitive header values before logging
+        masked_headers = _mask_sensitive_headers(headers)
+
         # 요청 바디 로깅 처리
         body_repr = None
         if method.upper() in ("POST", "PUT", "PATCH"):
@@ -34,7 +51,7 @@ class TracingClientSession(aiohttp.ClientSession):
                 body_repr = str(kwargs["data"])
 
         logger.debug(f"[{trace_id}] ---> {method} {url}")
-        logger.debug(f"[{trace_id}] Headers: {headers}")
+        logger.debug(f"[{trace_id}] Headers: {masked_headers}")
         if body_repr:
             logger.debug(f"[{trace_id}] Request Body: {body_repr}")
 

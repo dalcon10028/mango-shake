@@ -10,3 +10,9 @@ strategy:
       - '5m'
     universe:
       - 'BTCUSDT'
+
+wallet:
+  bitget:
+    api_key: ${BITGET_API_KEY}
+    api_secret: ${BITGET_API_SECRET}
+    passphrase: ${BITGET_PASSPHRASE}

@@ -1,9 +1,9 @@
 import logging.config
 
-from reactivex import Subject
-from bitget.future_market_client import BitgetFutureMarketClient
+from bitget.future.future_market_client import BitgetFutureMarketClient
 from dependency_injector import containers, providers
 
+from bitget.future.future_trade_client import BitgetFutureTradeClient
 from bitget.stream_manager import BitgetStreamManager
 from bitget.websocket_public_client import BitgetWebsocketClient
 
@@ -27,6 +27,14 @@ class Container(containers.DeclarativeContainer):
         BitgetFutureMarketClient,
         base_url=config.bitget.base_url,
         product_type=config.bitget.product_type,
+    )
+
+    bitget_future_trade_client = providers.Singleton(
+        BitgetFutureTradeClient,
+        base_url=config.bitget.base_url,
+        access_key=config.wallet.bitget.api_key,
+        secret_key=config.wallet.bitget.api_secret,
+        passphrase=config.wallet.bitget.passphrase,
     )
 
     bitget_future_websocket_public_client = providers.Singleton(
