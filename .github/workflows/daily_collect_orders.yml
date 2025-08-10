@@ -20,6 +20,9 @@ jobs:
 
     env:
       DB_URL: ${{ secrets.DB_URL }}
+      BITGET_API_KEY: ${{ secrets.BITGET_API_KEY }}
+      BITGET_API_SECRET: ${{ secrets.BITGET_API_SECRET }}
+      BITGET_PASSPHRASE: ${{ secrets.BITGET_PASSPHRASE }}
 
     steps:
       - name: Checkout repository
