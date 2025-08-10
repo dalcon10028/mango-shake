@@ -1,4 +1,4 @@
-name: Daily Collect Candles
+name: Daily Collect Orders
 
 # 매일 KST 10:00 → UTC 01:00
 on:
@@ -39,7 +39,7 @@ jobs:
         run: |
           poetry install --no-interaction --no-ansi
 
-      - name: Run daily candle collection
+      - name: Run daily orders collection
         id: collect
         env:
           TZ: Asia/Seoul
@@ -61,7 +61,7 @@ jobs:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
           payload: |
             {
-              "text": ":chart_with_upwards_trend: Daily Candle Collection Result",
+              "text": ":chart_with_upwards_trend: Daily Orders Collection Result",
               "attachments": [
                 {
                   "color": "${{ job.status == 'success' && 'good' || 'danger' }}",
