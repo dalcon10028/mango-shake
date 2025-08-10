@@ -26,6 +26,7 @@ sqlalchemy = "^2.0.42"
 pytest = "^8.4.1"
 aioresponses = "^0.7.8"
 pytest-asyncio = "^1.1.0"
+pytest-cov = "^6.2.1"
 
 [build-system]
 requires = ["poetry-core"]
