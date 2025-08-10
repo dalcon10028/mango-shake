@@ -32,9 +32,9 @@ class Container(containers.DeclarativeContainer):
     bitget_future_trade_client = providers.Singleton(
         BitgetFutureTradeClient,
         base_url=config.bitget.base_url,
-        access_key=config.bitget.access_key,
-        secret_key=config.bitget.secret_key,
-        passphrase=config.bitget.passphrase,
+        access_key=config.wallet.bitget.api_key,
+        secret_key=config.wallet.bitget.api_secret,
+        passphrase=config.wallet.bitget.passphrase,
     )
 
     bitget_future_websocket_public_client = providers.Singleton(

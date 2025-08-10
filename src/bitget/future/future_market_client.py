@@ -1,5 +1,5 @@
 from bitget.typing import ProductType
-from shared.tracing_client_session import TracingClientSession
+from shared.http.tracing_client_session import TracingClientSession
 
 class BitgetFutureMarketClient:
 

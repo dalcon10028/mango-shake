@@ -1,1 +1,2 @@
 from .future_market_client import BitgetFutureMarketClient
+from .future_trade_client import BitgetFutureTradeClient

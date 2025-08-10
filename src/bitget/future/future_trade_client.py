@@ -1,7 +1,9 @@
 from datetime import datetime
 
+from aiohttp import TCPConnector
+
 from bitget.utils.signature import generate_signature
-from shared.tracing_client_session import TracingClientSession
+from shared.http.tracing_client_session import TracingClientSession
 import time
 
 class BitgetFutureTradeClient:
@@ -17,7 +19,9 @@ class BitgetFutureTradeClient:
             "locale": "ko-KR",
         }
 
-        self._client = TracingClientSession(base_url=base_url, headers=headers)
+        connector = TCPConnector(ssl=False)
+
+        self._client = TracingClientSession(base_url=base_url, headers=headers, connector=connector)
 
     async def __aenter__(self) -> "BitgetFutureTradeClient":
         return self
