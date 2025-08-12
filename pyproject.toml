@@ -8,18 +8,25 @@ packages = [
     { include = "app.py", from = "src" }
 ]
 
+[tool.poetry.scripts]
+serve = "app:main"
+
+# streamlit run src/streamlit_app.py
+
 [tool.poetry.dependencies]
 python = "^3.12"
 aiohttp = "^3.12.14"
 websockets = "^15.0.1"
 reactivex = "^4.0.4"
-dependency-injector = {extras = ["yaml"], version = "^4.48.1"}
+dependency-injector = { extras = ["yaml"], version = "^4.48.1" }
 black = "^25.1.0"
 logging = "^0.4.9.6"
 asyncpg = "^0.30.0"
 greenlet = "^3.2.3"
 pydantic-settings = "^2.10.1"
 sqlalchemy = "^2.0.42"
+streamlit = "^1.48.0"
+nest-asyncio = "^1.6.0"
 
 
 [tool.poetry.group.dev.dependencies]
