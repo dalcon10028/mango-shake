@@ -34,7 +34,11 @@ class TracingClientSession(aiohttp.ClientSession):
         kwargs["trace_request_ctx"] = trace_request_ctx
 
         headers = kwargs.get("headers", {})
-        content_type = headers.get("Content-Type", "")
+
+        # Filter out None values from params to avoid sending empty parameters
+        if "params" in kwargs and kwargs["params"]:
+            kwargs["params"] = {k: v for k, v in kwargs["params"].items() if v is not None}
+
 
         # Mask sensitive header values before logging
         masked_headers = _mask_sensitive_headers(headers)

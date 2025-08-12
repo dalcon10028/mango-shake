@@ -1,27 +1,18 @@
 from datetime import datetime
+from bitget.client.signature_client import SignatureClient
 
-from aiohttp import TCPConnector
 
-from bitget.utils.signature import generate_signature
-from shared.http.tracing_client_session import TracingClientSession
-import time
+class BitgetFutureTradeClient(SignatureClient):
 
-class BitgetFutureTradeClient:
-
-    def __init__(self, base_url: str, access_key: str, secret_key: str, passphrase: str):
-        self._access_key = access_key
-        self._secret_key = secret_key
-        self._passphrase = passphrase
-        headers = {
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-            "ACCESS-KEY": access_key,
-            "locale": "ko-KR",
-        }
-
-        connector = TCPConnector(ssl=False)
-
-        self._client = TracingClientSession(base_url=base_url, headers=headers, connector=connector)
+    def __init__(
+            self,
+            base_url: str,
+            access_key: str,
+            secret_key: str,
+            passphrase: str,
+            locale: str = "ko-KR",
+    ):
+        super().__init__(base_url, access_key, secret_key, passphrase, locale=locale)
 
     async def __aenter__(self) -> "BitgetFutureTradeClient":
         return self
@@ -60,21 +51,4 @@ class BitgetFutureTradeClient:
             if value is not None:
                 params[key] = value
 
-        # signature headers
-        timestamp = str(int(time.time() * 1000))
-
-        # build query string for signing
-        query_string = "&".join(f"{k}={v}" for k, v in params.items())
-
-        sign = generate_signature(self._secret_key, timestamp, "GET", path, query_string, "")
-
-        headers = {
-            "ACCESS-KEY": self._access_key,
-            "ACCESS-SIGN": sign,
-            "ACCESS-TIMESTAMP": timestamp,
-            "ACCESS-PASSPHRASE": self._passphrase,
-            "Content-Type": "application/json",
-        }
-        async with self._client.get(path, params=params, headers=headers) as resp:
-            resp.raise_for_status()
-            return await resp.json()
+        return await self.get(path, params=params)
