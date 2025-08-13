@@ -1,2 +1,2 @@
-from future import *
-from spot import *
+from .future import *
+from .spot import *
