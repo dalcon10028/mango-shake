@@ -69,7 +69,7 @@ async def collect_crypto_currencies(base_date: date):
 
     async with UpbitCrixClient() as client:
         data = await client.get_daily_candles("USDT")
-        for candle_data, index in data:
+        for candle_data in data:
             kst_date = datetime.strptime(candle_data["candleDateTimeKst"], "%Y-%m-%dT%H:%M:%S%z").date()
             if kst_date > base_date:
                 continue
