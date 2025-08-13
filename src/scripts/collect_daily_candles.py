@@ -68,12 +68,16 @@ async def collect_crypto_currencies(base_date: date):
     logger.info(f"[bitget] Collected {len(candles)} candles for base date {base_date}")
 
     async with UpbitCrixClient() as client:
-        data = await client.get_candles("USDT")
-        for candle_data in data["candles"]:
+        data = await client.get_daily_candles("USDT")
+        for candle_data, index in data["candles"]:
+            kst_date = datetime.strptime(candle_data["candleDateTimeKst"], "%Y-%m-%dT%H:%M:%S%z").date()
+            if kst_date > base_date:
+                continue
+
             candles.append(DailyCandle(
                 exchange="UPBIT",
                 # parse 2025-08-13T09:00:00+09:00
-                base_date=datetime.strptime(candle_data["candleDateTimeKst"], "%Y-%m-%dT%H:%M:%S%z").date(),
+                base_date=kst_date,
                 symbol=f"USDT/KRW",
                 open=Decimal(candle_data["openingPrice"]),
                 high=Decimal(candle_data["highPrice"]),
