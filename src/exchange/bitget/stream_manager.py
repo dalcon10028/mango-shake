@@ -3,7 +3,7 @@ import logging
 from collections import defaultdict
 from typing import Any
 from reactivex import Subject
-from bitget.dto.websocket import SubscribeReq
+from exchange.bitget.dto.websocket import SubscribeReq
 
 
 class BitgetStreamManager:

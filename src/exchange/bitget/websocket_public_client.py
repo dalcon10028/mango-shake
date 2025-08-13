@@ -6,8 +6,8 @@ from typing import List, Optional, Set
 from websockets import ConnectionClosed
 from websockets.asyncio.client import connect
 
-from bitget.dto.websocket import BaseWsReq, SubscribeReq
-from bitget.stream_manager import BitgetStreamManager
+from exchange.bitget.dto.websocket import BaseWsReq, SubscribeReq
+from exchange.bitget.stream_manager import BitgetStreamManager
 
 logger = logging.getLogger("websockets")
 logger.setLevel(logging.DEBUG)

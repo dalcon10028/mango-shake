@@ -3,7 +3,7 @@ import hashlib
 import base64
 import pytest
 
-from bitget.utils.signature import generate_signature
+from exchange.bitget.utils.signature import generate_signature
 
 @pytest.mark.parametrize("method, path, query, body", [
     ("GET", "/api/mix/v2/market/depth", "", ""),

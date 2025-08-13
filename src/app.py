@@ -2,7 +2,7 @@ import asyncio
 import logging
 
 from dependency_injector.wiring import inject, Provide
-from bitget.websocket_public_client import BitgetWebsocketClient
+from exchange.bitget.websocket_public_client import BitgetWebsocketClient
 from shared.containers import Container
 
 logger = logging.getLogger("main")

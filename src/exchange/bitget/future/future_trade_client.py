@@ -1,5 +1,5 @@
 from datetime import datetime
-from bitget.client.signature_client import SignatureClient
+from exchange.bitget.client.signature_client import SignatureClient
 
 
 class BitgetFutureTradeClient(SignatureClient):

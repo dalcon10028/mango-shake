@@ -1,7 +1,7 @@
 import time
 
 from aiohttp import TCPConnector
-from bitget.utils.signature import generate_signature
+from exchange.bitget.utils.signature import generate_signature
 from shared.http import TracingClientSession
 
 

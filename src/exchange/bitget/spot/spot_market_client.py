@@ -1,5 +1,5 @@
 from aiohttp import TCPConnector
-from bitget.typing import Granularity
+from exchange.bitget.typing import Granularity
 from shared.http import TracingClientSession
 
 class BitgetSpotMarketClient:

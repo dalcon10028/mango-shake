@@ -5,7 +5,8 @@ from reactivex.scheduler.eventloop import AsyncIOScheduler
 from sqlalchemy.dialects.postgresql import insert
 from datetime import datetime, date, timedelta
 from datetime import datetime as _dt
-from bitget.spot_market_client import BitgetSpotMarketClient
+from exchange.bitget import BitgetSpotMarketClient
+from exchange.upbit import UpbitCrixClient
 from model import DailyCandle
 from service import get_by_market
 from shared.db import get_db
@@ -14,7 +15,6 @@ from shared.utils.iterable import chunks
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
-
 
 async def collect_crypto_currencies(base_date: date):
     """
@@ -56,7 +56,7 @@ async def collect_crypto_currencies(base_date: date):
                     exchange="BITGET",
                     # timestamp to date conversion
                     base_date=datetime.fromtimestamp(int(data[0]) / 1000).date(),
-                    symbol=ticker.symbol,
+                    symbol=f"{ticker.symbol}/USDT",
                     open=Decimal(data[1]),
                     high=Decimal(data[2]),
                     low=Decimal(data[3]),
@@ -65,7 +65,24 @@ async def collect_crypto_currencies(base_date: date):
                 )
                 candles.append(candle)
 
-    logger.info(f"Collected {len(candles)} candles for base date {base_date}")
+    logger.info(f"[bitget] Collected {len(candles)} candles for base date {base_date}")
+
+    async with UpbitCrixClient() as client:
+        data = await client.get_candles("USDT")
+        for candle_data in data["candles"]:
+            candles.append(DailyCandle(
+                exchange="UPBIT",
+                # parse 2025-08-13T09:00:00+09:00
+                base_date=datetime.strptime(candle_data["candleDateTimeKst"], "%Y-%m-%dT%H:%M:%S%z").date(),
+                symbol=f"USDT/KRW",
+                open=Decimal(candle_data["openingPrice"]),
+                high=Decimal(candle_data["highPrice"]),
+                low=Decimal(candle_data["lowPrice"]),
+                close=Decimal(candle_data["tradePrice"]),
+                volume=Decimal(candle_data["candleAccTradeVolume"]),
+            ))
+
+    logger.info(f"[upbit] Collected {len(candles)} candles for base date {base_date}")
 
 
     # 3. Upsert all collected candles to the database
