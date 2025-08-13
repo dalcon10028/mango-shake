@@ -1,1 +1,1 @@
-from crix_client import UpbitCrixClient
+from .crix_client import UpbitCrixClient
