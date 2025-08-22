@@ -1,4 +1,5 @@
 import time
+import logging
 
 from aiohttp import TCPConnector
 from exchange.bitget.utils.signature import generate_signature
@@ -12,7 +13,6 @@ class SignatureClient:
             access_key: str,
             secret_key: str,
             passphrase: str,
-            locale: str = "ko-KR",
     ):
         self._access_key = access_key
         self._secret_key = secret_key
@@ -22,7 +22,7 @@ class SignatureClient:
             "Content-Type": "application/json",
             "Accept": "application/json",
             "ACCESS-KEY": access_key,
-            "locale": locale,
+            "locale": "ko-KR",
         }
         connector = TCPConnector(ssl=False)
         self._client = TracingClientSession(
@@ -78,8 +78,10 @@ class SignatureClient:
         headers = {**auth_headers}
 
         session_method = getattr(self._client, method.lower())
-        async with session_method(path, params=params, json=json_body, headers=headers) as resp:
-            resp.raise_for_status()
+        async with session_method(path, params=params, data=body_str, headers=headers) as resp:
+            if resp.status != 200:
+                logging.error(f"HTTP Error {resp.status}: {await resp.text()}")
+                raise RuntimeError(f"HTTP Error {resp.status}: {await resp.text()}")
             return await resp.json()
 
     async def get(

@@ -1,8 +1,14 @@
 import logging.config
 
+from bitget.future.future_account_client import BitgetFutureAccountClient
+from bitget.future.future_market_client import BitgetFutureMarketClient
 from exchange.bitget.future.future_market_client import BitgetFutureMarketClient
 from dependency_injector import containers, providers
 
+from bitget.future.future_position_client import BitgetFuturePositionClient
+from bitget.future.future_trade_client import BitgetFutureTradeClient
+from bitget.stream_manager import BitgetStreamManager
+from bitget.websocket_public_client import BitgetWebsocketClient
 from exchange.bitget.future.future_trade_client import BitgetFutureTradeClient
 from exchange.bitget.stream_manager import BitgetStreamManager
 from exchange.bitget.websocket_public_client import BitgetWebsocketClient
@@ -31,6 +37,22 @@ class Container(containers.DeclarativeContainer):
 
     bitget_future_trade_client = providers.Singleton(
         BitgetFutureTradeClient,
+        base_url=config.bitget.base_url,
+        access_key=config.wallet.bitget.api_key,
+        secret_key=config.wallet.bitget.api_secret,
+        passphrase=config.wallet.bitget.passphrase,
+    )
+
+    bitget_future_account_client = providers.Singleton(
+        BitgetFutureAccountClient,
+        base_url=config.bitget.base_url,
+        access_key=config.wallet.bitget.api_key,
+        secret_key=config.wallet.bitget.api_secret,
+        passphrase=config.wallet.bitget.passphrase,
+    )
+
+    bitget_future_position_client = providers.Singleton(
+        BitgetFuturePositionClient,
         base_url=config.bitget.base_url,
         access_key=config.wallet.bitget.api_key,
         secret_key=config.wallet.bitget.api_secret,

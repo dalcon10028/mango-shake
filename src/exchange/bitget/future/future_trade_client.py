@@ -1,4 +1,8 @@
 from datetime import datetime
+from decimal import Decimal
+from typing import Optional
+
+from bitget.client.signature_client import SignatureClient
 from exchange.bitget.client.signature_client import SignatureClient
 
 
@@ -10,9 +14,8 @@ class BitgetFutureTradeClient(SignatureClient):
             access_key: str,
             secret_key: str,
             passphrase: str,
-            locale: str = "ko-KR",
     ):
-        super().__init__(base_url, access_key, secret_key, passphrase, locale=locale)
+        super().__init__(base_url, access_key, secret_key, passphrase)
 
     async def __aenter__(self) -> "BitgetFutureTradeClient":
         return self
@@ -52,3 +55,56 @@ class BitgetFutureTradeClient(SignatureClient):
                 params[key] = value
 
         return await self.get(path, params=params)
+
+    async def place_order(self,
+        symbol: str,
+        product_type: str,
+        size: Decimal,
+        side: str,
+        order_type: str = 'limit',
+        price: Optional[Decimal] = None,
+    ):
+        """
+        Place a new order on Bitget.
+        """
+        path = "/api/v2/mix/order/place-order"
+        body = {
+            "symbol": symbol,
+            "productType": product_type,
+            "marginMode": "isolated",  # or "crossed"
+            "marginCoin": "USDT",  # or other margin coins
+            "size": str(size),
+            "price": str(price) if price is not None else None,
+            "side": side,
+            "tradeSide": "open",
+            "orderType": order_type,
+        }
+        return await self.post(path, json_body=body)
+
+    async def cancel_all_orders(
+        self,
+        product_type: str = "USDT-FUTURES",
+    ):
+        """
+        Cancel all orders for a given product type and symbol.
+        """
+        path = "/api/v2/mix/order/cancel-all-orders"
+        body = {"productType": product_type}
+        return await self.post(path, json_body=body)
+
+    async def flash_close_position(
+        self,
+        symbol: str,
+        product_type: str = "USDT-FUTURES",
+        hold_side: str = "long",
+    ):
+        """
+        Close all positions for a given symbol and hold side.
+        """
+        path = "/api/v2/mix/order/close-positions"
+        body = {
+            "symbol": symbol,
+            "productType": product_type,
+            "holdSide": hold_side,
+        }
+        return await self.post(path, json_body=body)
