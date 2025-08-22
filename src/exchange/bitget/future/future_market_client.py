@@ -3,7 +3,6 @@ from typing import Optional
 
 from aiohttp import TCPConnector
 
-from bitget.typing import ProductType
 from exchange.bitget.typing import ProductType
 from shared.http.tracing_client_session import TracingClientSession
 

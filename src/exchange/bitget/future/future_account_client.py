@@ -1,6 +1,7 @@
 from typing import Any
 
-from bitget.client.signature_client import SignatureClient
+from exchange.bitget.client import SignatureClient
+
 
 class BitgetFutureAccountClient(SignatureClient):
 

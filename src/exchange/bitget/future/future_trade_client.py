@@ -2,7 +2,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
-from bitget.client.signature_client import SignatureClient
+
 from exchange.bitget.client.signature_client import SignatureClient
 
 

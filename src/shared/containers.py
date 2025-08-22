@@ -1,14 +1,10 @@
 import logging.config
 
-from bitget.future.future_account_client import BitgetFutureAccountClient
-from bitget.future.future_market_client import BitgetFutureMarketClient
+from exchange.bitget.future.future_account_client import BitgetFutureAccountClient
 from exchange.bitget.future.future_market_client import BitgetFutureMarketClient
 from dependency_injector import containers, providers
 
-from bitget.future.future_position_client import BitgetFuturePositionClient
-from bitget.future.future_trade_client import BitgetFutureTradeClient
-from bitget.stream_manager import BitgetStreamManager
-from bitget.websocket_public_client import BitgetWebsocketClient
+from exchange.bitget.future.future_position_client import BitgetFuturePositionClient
 from exchange.bitget.future.future_trade_client import BitgetFutureTradeClient
 from exchange.bitget.stream_manager import BitgetStreamManager
 from exchange.bitget.websocket_public_client import BitgetWebsocketClient

@@ -2,9 +2,10 @@ import asyncio
 import logging
 
 from decimal import Decimal
-from bitget.future import BitgetFutureMarketClient, BitgetFutureTradeClient
-from bitget.future.future_position_client import BitgetFuturePositionClient
 from dependency_injector.wiring import inject, Provide
+
+from exchange.bitget import BitgetFutureMarketClient, BitgetFutureTradeClient
+from exchange.bitget.future.future_position_client import BitgetFuturePositionClient
 from shared.containers import Container
 
 logger = logging.getLogger(__name__)
