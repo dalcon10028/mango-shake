@@ -11,7 +11,6 @@ from shared.containers import Container
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
-
 ENTRY_AMOUNT = Decimal("200")
 SYMBOL = "BTCUSDT"
 
@@ -23,8 +22,11 @@ async def main(
 ):
     # 현재 주문 모두 취소, 대기 주문 없는 경우 에러
     # {"code":"22001","msg":"No order to cancel","requestTime":1755882462519,"data":null}
+
+    res = None  # 안전용 초기화
+
     try:
-        res = await trade_client.cancel_all_orders() # 모든 주문 취소
+        res = await trade_client.cancel_all_orders()  # 모든 주문 취소
         logger.info(f"모든 주문 취소 결과: {res}")
     except Exception as e:
         if "No order to cancel" in str(e):
@@ -33,37 +35,43 @@ async def main(
             logger.error(f"주문 취소 중 오류 발생: {e}")
             return
 
-
     async with market_client as market_client:
-        res = await market_client.get_klines(
+        # 최근 3개 일봉: [오늘, 어제, 그제] 순으로 온다고 가정
+        klines = await market_client.get_klines(
             symbol=SYMBOL,
             granularity="1Dutc",
-            limit=1
+            limit=3
         )
-        last_candle = res[0]
-        open_price = Decimal(last_candle[1])
-        # high_price = Decimal(last_candle[2])
-        # low_price = Decimal(last_candle[3])
-        close_price = Decimal(last_candle[4])
+        if len(klines) < 3:
+            logger.error(f"Kline 데이터가 부족합니다: {len(klines)}")
+            return
 
-    # 전날이 음봉이면 매수
-    if close_price < open_price:
-        logger.info("전날 음봉, 매수")
-        # 매수 로직 추가
+        today = klines[0]
+        yesterday = klines[1]
+        day_before = klines[2]
+
+        today_open = Decimal(today[1])       # 오늘 시가
+        prev_close = Decimal(yesterday[4])   # 어제 종가
+        prev2_close = Decimal(day_before[4]) # 그제 종가
+
+
+    # - 매수: 어제 종가 < 그제 종가 → 어제 종가에 지정가 매수 시도
+    # - 매도: 어제 종가 > 그제 종가 AND 오늘 시가 ≥ 평단×1.05 → 전량 매도
+    if prev_close < prev2_close:
+        logger.info(f"전일 하락(어제 종가 {prev_close} < 그제 종가 {prev2_close}), 매수 시도")
         async with trade_client as trade_client:
             res = await trade_client.place_order(
                 symbol=SYMBOL,
                 product_type="USDT-FUTURES",
-                size=ENTRY_AMOUNT / close_price,  # 수량은 USDT로 계산
-                price=close_price,
+                size=ENTRY_AMOUNT / prev_close,
+                price=prev_close,
                 side="buy",
                 order_type="limit",
             )
             logger.info(f"매수 주문 결과: {res}")
 
-    elif close_price > open_price:
-        logger.info("전날 양봉, 매도 또는 대기")
-        # 포지션을 들고와서 평단가 대비 5% 이상 수익이면 매도
+    elif prev_close > prev2_close:
+        logger.info(f"전일 상승(어제 종가 {prev_close} > 그제 종가 {prev2_close}), 매도 점검")
         async with position_client as position_client:
             position = await position_client.get_position(symbol=SYMBOL, product_type="USDT-FUTURES")
             if not position:
@@ -72,19 +80,17 @@ async def main(
 
             avg_price = Decimal(position['openPriceAvg'])
             size = Decimal(position['size'])
-            if size > 0 and close_price >= avg_price * Decimal("1.05"):
-                # 수익 실현
-                logger.info("수익 실현, 매도")
+            if size > 0 and today_open >= avg_price * Decimal("1.05"):
+                logger.info(f"수익 실현 조건 충족: 오늘 시가 {today_open} ≥ 평단×1.05 ({avg_price * Decimal('1.05')})")
                 res = await trade_client.flash_close_position(symbol=SYMBOL)
                 logger.info(f"매도 주문 결과: {res}")
             else:
-                logger.info("포지션 유지 또는 손실, 대기")
+                logger.info("매도 조건 미충족, 대기")
 
     else:
-        logger.info("전날 변동 없음, 대기")
+        logger.info("전일 변동 없음(어제 종가 == 그제 종가), 대기")
+
     logger.info(res)
-
-
 
 if __name__ == "__main__":
     container = Container()
