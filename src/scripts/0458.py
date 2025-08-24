@@ -40,17 +40,16 @@ async def main(
         klines = await market_client.get_klines(
             symbol=SYMBOL,
             granularity="1Dutc",
-            limit=3
+            limit=2
         )
-        if len(klines) < 3:
+        if len(klines) < 2:
             logger.error(f"Kline 데이터가 부족합니다: {len(klines)}")
             return
 
-        today = klines[0]
         yesterday = klines[1]
-        day_before = klines[2]
+        day_before = klines[0]
 
-        today_open = Decimal(today[1])       # 오늘 시가
+        today_open = Decimal(yesterday[4])       # 오늘 시가 == 어제 종가
         prev_close = Decimal(yesterday[4])   # 어제 종가
         prev2_close = Decimal(day_before[4]) # 그제 종가
 
