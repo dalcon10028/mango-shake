@@ -1,10 +1,18 @@
 name: 0458 Strategy
 
-# 매일 UTC 0시 (KST 9시)
 on:
   schedule:
-    - cron: '5 0 * * *' # Runs at 00:05 UTC (09:05 KST)
+    - cron: '1 0 * * *'   # 09:01 KST (right after close)
+    - cron: '3 0 * * *'   # fallback: 09:03 KST
+    - cron: '7 0 * * *'   # fallback: 09:07 KST (avoid top-of-hour contention)
   workflow_dispatch:  # Allow manual trigger
+
+concurrency:
+  group: 0458-${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   run_orders_and_notify:
@@ -25,7 +33,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.13'
 
