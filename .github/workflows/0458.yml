@@ -2,9 +2,7 @@ name: 0458 Strategy
 
 on:
   schedule:
-    - cron: '1 0 * * *'   # 09:01 KST (right after close)
-    - cron: '3 0 * * *'   # fallback: 09:03 KST
-    - cron: '7 0 * * *'   # fallback: 09:07 KST (avoid top-of-hour contention)
+    - cron: '7 0 * * *'   # 09:07 KST
   workflow_dispatch:  # Allow manual trigger
 
 concurrency:
