@@ -58,6 +58,8 @@ async def main(
     # - 매도: 어제 종가 > 그제 종가 AND 오늘 시가 ≥ 평단×1.05 → 전량 매도
     if prev_close < prev2_close:
         logger.info(f"전일 하락(어제 종가 {prev_close} < 그제 종가 {prev2_close}), 매수 시도")
+        # 종가랑 현재가 중 더 낮은 가격에 매수 주문
+
         async with trade_client as trade_client:
             res = await trade_client.place_order(
                 symbol=SYMBOL,
@@ -72,13 +74,15 @@ async def main(
     elif prev_close > prev2_close:
         logger.info(f"전일 상승(어제 종가 {prev_close} > 그제 종가 {prev2_close}), 매도 점검")
         async with position_client as position_client:
-            position = await position_client.get_position(symbol=SYMBOL, product_type="USDT-FUTURES")
-            if not position:
+            positions: list[dict] = await position_client.get_position(symbol=SYMBOL, product_type="USDT-FUTURES")
+            if not positions:
                 logger.info("포지션 없음, 대기")
                 return
 
+            position = positions[0]
+
             avg_price = Decimal(position['openPriceAvg'])
-            size = Decimal(position['size'])
+            size = Decimal(position['available'])
             if size > 0 and today_open >= avg_price * Decimal("1.05"):
                 logger.info(f"수익 실현 조건 충족: 오늘 시가 {today_open} ≥ 평단×1.05 ({avg_price * Decimal('1.05')})")
                 res = await trade_client.flash_close_position(symbol=SYMBOL)

@@ -27,7 +27,7 @@ class BitgetFuturePositionClient(SignatureClient):
         res = await self.get(path, params=params)
         return res["data"]["list"]
 
-    async def get_position(self, symbol: str, product_type: str = 'USDT-FUTURES') -> dict[str, Any]:
+    async def get_position(self, symbol: str, product_type: str = 'USDT-FUTURES') -> list[dict[str, Any]]:
         """
         Get current position for a specific symbol in futures trading.
 
