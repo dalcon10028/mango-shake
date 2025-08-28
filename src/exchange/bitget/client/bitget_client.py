@@ -1,8 +1,9 @@
-import logging
 import json
 from typing import Any
 
 from aiohttp import TCPConnector
+
+from exchange.bitget.dto.bitget_error import BitgetError
 from shared.http import TracingClientSession
 
 
@@ -45,13 +46,22 @@ class BitgetClient:
                 headers = {}
             headers["Content-Type"] = "application/json"
         async with session_method(path, params=params, data=body_str, headers=headers) as resp:
-            text = await resp.text()
             if resp.status != 200:
-                raise RuntimeError(f"HTTP {resp.status}: {text}")
+                try:
+                    error_resp = await resp.json()
+                except Exception:
+                    error_resp = {
+                        "code": str(resp.status),
+                        "msg": await resp.text(),
+                        "requestTime": None,
+                        "data": None,
+                    }
+                raise BitgetError(error_resp)
             content_type = resp.headers.get("Content-Type", "")
             if "application/json" in content_type:
                 return await resp.json()
-            return text
+            return await resp.text()
+
 
     async def get(
             self,
