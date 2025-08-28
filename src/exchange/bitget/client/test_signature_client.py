@@ -3,6 +3,7 @@ import pytest
 from aioresponses import aioresponses, CallbackResult
 
 from exchange.bitget.client.signature_client import SignatureClient
+from exchange.bitget.dto.bitget_error import BitgetError, BitgetErrorCode
 
 BASE_URL = "https://api.example.com"
 ACCESS_KEY = "ak_test"
@@ -160,7 +161,12 @@ async def test_error_bubbles_with_http_status_and_body(monkeypatch):
     )
 
     path = "/v1/fail"
-    error_body = {"error": "bad"}
+    error_body = {
+        "code": "40762",
+        "msg": "The order amount exceeds the balance",
+        "requestTime": 1756346471768,
+        "data": None,
+    }
 
     def cb(url, **kwargs):
         return CallbackResult(
@@ -177,9 +183,14 @@ async def test_error_bubbles_with_http_status_and_body(monkeypatch):
             secret_key=SECRET_KEY,
             passphrase=PASSPHRASE,
         ) as client:
-            with pytest.raises(RuntimeError) as exc:
+            with pytest.raises(BitgetError) as exc:
                 await client.get(path)
 
-    msg = str(exc.value)
-    assert "HTTP 400" in msg
-    assert json.dumps(error_body) in msg
+    err = exc.value
+    assert isinstance(err, BitgetError)
+    assert err.code == BitgetErrorCode.INSUFFICIENT_BALANCE
+    assert err.msg == error_body["msg"]
+    assert err.request_time == error_body["requestTime"]
+    assert err.data == error_body["data"]
+    s = str(err)
+    assert "INSUFFICIENT_BALANCE" in s and "40762" in s and error_body["msg"] in s

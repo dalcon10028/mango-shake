@@ -1,11 +1,9 @@
 import json
+
 from typing import Any
-
 from aiohttp import TCPConnector
-
 from exchange.bitget.dto.bitget_error import BitgetError
 from shared.http import TracingClientSession
-
 
 class BitgetClient:
     def __init__(

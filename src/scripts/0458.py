@@ -5,6 +5,7 @@ from decimal import Decimal
 from dependency_injector.wiring import inject, Provide
 
 from exchange.bitget import BitgetFutureMarketClient, BitgetFutureTradeClient
+from exchange.bitget.dto.bitget_error import BitgetError, BitgetErrorCode
 from exchange.bitget.future.future_position_client import BitgetFuturePositionClient
 from shared.containers import Container
 
@@ -28,8 +29,8 @@ async def main(
     try:
         res = await trade_client.cancel_all_orders()  # 모든 주문 취소
         logger.info(f"모든 주문 취소 결과: {res}")
-    except Exception as e:
-        if "No order to cancel" in str(e):
+    except BitgetError as e:
+        if e.code == BitgetErrorCode.NO_ORDER_TO_CANCEL:
             logger.info("대기 주문 없음, 건너뜀")
         else:
             logger.error(f"주문 취소 중 오류 발생: {e}")
@@ -61,15 +62,22 @@ async def main(
         # 종가랑 현재가 중 더 낮은 가격에 매수 주문
 
         async with trade_client as trade_client:
-            res = await trade_client.place_order(
-                symbol=SYMBOL,
-                product_type="USDT-FUTURES",
-                size=ENTRY_AMOUNT / prev_close,
-                price=prev_close,
-                side="buy",
-                order_type="limit",
-            )
-            logger.info(f"매수 주문 결과: {res}")
+            try:
+                res = await trade_client.place_order(
+                    symbol=SYMBOL,
+                    product_type="USDT-FUTURES",
+                    size=ENTRY_AMOUNT / prev_close,
+                    price=prev_close,
+                    side="buy",
+                    order_type="limit",
+                )
+                logger.info(f"매수 주문 결과: {res}")
+            except BitgetError as e:
+                if e.code == BitgetErrorCode.INSUFFICIENT_BALANCE:
+                    logger.warning(f"잔고 부족으로 매수 실패: {e}")
+                else:
+                    logger.error(f"매수 주문 중 오류 발생: {e}")
+                    return
 
     elif prev_close > prev2_close:
         logger.info(f"전일 상승(어제 종가 {prev_close} > 그제 종가 {prev2_close}), 매도 점검")
