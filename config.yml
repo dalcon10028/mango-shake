@@ -3,6 +3,11 @@ bitget:
   websocket_public_url: 'wss://ws.bitget.com/v2/ws/public'
   websocket_private_url: 'wss://ws.bitget.com/v2/ws/private'
 
+kiwoom:
+  base_url: 'https://api.kiwoom.com'
+  app_key: ${KIWOOM_API_KEY}
+  secret_key: ${KIWOOM_API_SECRET}
+
 strategy:
   squirrel:
     product_type: 'USDT-FUTURES'

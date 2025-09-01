@@ -8,6 +8,7 @@ from exchange.bitget.future.future_position_client import BitgetFuturePositionCl
 from exchange.bitget.future.future_trade_client import BitgetFutureTradeClient
 from exchange.bitget.stream_manager import BitgetStreamManager
 from exchange.bitget.websocket_public_client import BitgetWebsocketClient
+from exchange.kiwoom.rest_client import KiwoomRestClient
 
 
 class Container(containers.DeclarativeContainer):
@@ -59,4 +60,11 @@ class Container(containers.DeclarativeContainer):
         BitgetWebsocketClient,
         url=config.bitget.websocket_public_url,
         stream_manager=bitget_stream_manager,
+    )
+
+    kiwoom_rest_client = providers.Singleton(
+        KiwoomRestClient,
+        base_url=config.kiwoom.base_url,
+        app_key=config.kiwoom.app_key,
+        app_secret=config.kiwoom.secret_key,
     )

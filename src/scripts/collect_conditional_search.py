@@ -1,0 +1,165 @@
+import asyncio
+import logging
+
+from datetime import date
+from decimal import Decimal, InvalidOperation
+from typing import List, Optional, Dict, Any
+from dependency_injector.wiring import inject, Provide
+from sqlalchemy.dialects.postgresql import insert
+from exchange.kiwoom.rest_client import KiwoomRestClient
+from exchange.kiwoom.ws_client import KiwoomWS
+from model.condition_search_result import ConditionSearchResult
+from shared.containers import Container
+from shared.db import get_db
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
+
+
+def to_decimal(v: Optional[str]) -> Decimal:
+    """Convert Kiwoom zero-padded numeric strings (or None/"") safely to Decimal."""
+    if v is None or v == "":
+        return Decimal(0)
+    try:
+        return Decimal(v)
+    except (InvalidOperation, TypeError):
+        return Decimal(0)
+
+
+class ConditionSearchCollector:
+    """Handle HTS 조건검색 WebSocket messages and persist results."""
+
+    def __init__(self, ws: KiwoomWS, base_date: date):
+        self.ws = ws
+        self.base_date = base_date
+
+    async def on_msg(self, msg: Dict[str, Any]) -> None:
+        logger.info(f"Received message: {msg}")
+        match msg:
+            case {"trnm": "CNSRLST", "return_code": 0, "data": data}:
+                await self._handle_cnsrlst(data)
+            case {"trnm": "CNSRREQ", "return_code": 0, "data": data}:
+                await self._handle_cnsrreq(data)
+            case _:
+                logger.debug("Unhandled message or non-success return_code")
+
+    async def _handle_cnsrlst(self, data: List[List[str]]) -> None:
+        """조건식 목록 수신 → 내부 상태 저장 + 각 조건식에 대한 검색 요청 발송"""
+        for item in data:
+            seq, name = item[0], item[1]
+            await self.ws.send(
+                {
+                    "trnm": "CNSRREQ",
+                    "seq": seq,
+                    "search_type": "0",
+                    "stex_tp": "K",
+                    "cont_yn": "N",
+                    "next_key": "",
+                }
+            )
+        logger.info(f"Requested condition search for {len(data)} items")
+
+    async def _handle_cnsrreq(self, data: List[Dict[str, str]]) -> None:
+
+        results = []
+        for item in data:
+            symbol = item.get("9001")
+            if not symbol:
+                continue
+            results.append(
+                ConditionSearchResult(
+                    base_date=self.base_date,
+                    symbol=symbol,
+                    name=item.get("302"),
+                    price=to_decimal(item.get("10")),
+                    change_sign=item.get("25"),
+                    change_price=to_decimal(item.get("11")),
+                    change_rate=to_decimal(item.get("12")),
+                    volume_acc=to_decimal(item.get("13")),
+                    open=to_decimal(item.get("16")),
+                    high=to_decimal(item.get("17")),
+                    low=to_decimal(item.get("18")),
+                    response=item,
+                )
+            )
+
+        if not results:
+            logger.info("No valid results to upsert (no symbol present)")
+            return
+
+        await self._upsert_results(results)
+        logger.info(f"Condition Search Results: {results}")
+
+    async def _upsert_results(self, results: List[ConditionSearchResult]) -> None:
+        # Build clean dicts explicitly to avoid ORM internals in __dict__
+        records = []
+        for r in results:
+            records.append(
+                {
+                    "base_date": r.base_date,
+                    "symbol": r.symbol,
+                    "name": r.name,
+                    "price": r.price,
+                    "change_sign": r.change_sign,
+                    "change_price": r.change_price,
+                    "change_rate": r.change_rate,
+                    "volume_acc": r.volume_acc,
+                    "open": r.open,
+                    "high": r.high,
+                    "low": r.low,
+                    "response": r.response,
+                }
+            )
+
+        async with get_db() as session:
+            stmt = insert(ConditionSearchResult).values(records)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["base_date", "symbol"],
+                set_={
+                    col: stmt.excluded[col]
+                    for col in records[0].keys()
+                    if col not in ("base_date", "symbol")
+                },
+            )
+            await session.execute(stmt)
+            await session.commit()
+        logger.info(f"Upserted {len(records)} condition search results into database.")
+
+
+@inject
+async def main(
+    kiwoom_rest_client: KiwoomRestClient = Provide[Container.kiwoom_rest_client],
+):
+    # 1) REST 토큰 발급
+    async with kiwoom_rest_client as client:
+        token = await client.get_access_token()
+        logger.info(f"access_token={token}")
+
+    # 2) WS 클라이언트 구성 + 콜백 바인딩
+    ws_client = KiwoomWS(
+        "wss://api.kiwoom.com:10000/api/dostk/websocket",
+        access_token=token,
+        on_message=None,  # 콜렉터 바인딩 후 설정
+    )
+    collector = ConditionSearchCollector(ws=ws_client, base_date=date.today())
+    ws_client.on_message = collector.on_msg
+
+    # 3) 수신 루프 시작
+    ws_task = asyncio.create_task(ws_client.run())
+
+    # 4) 로그인 이후 약간 대기한 뒤 조건식 목록 요청 (CNSRLST)
+    await asyncio.sleep(1)
+    await ws_client.send({"trnm": "CNSRLST"})
+
+    # 5) 데모: 5초간 실행 후 종료 (필요 시 취향껏 변경)
+    await asyncio.sleep(5)
+    await ws_client.disconnect()
+    await ws_task
+
+
+if __name__ == "__main__":
+    container = Container()
+    container.init_resources()
+    container.wire(modules=[__name__])
+
+    asyncio.run(main())
