@@ -6,6 +6,7 @@ from dependency_injector import containers, providers
 
 from exchange.bitget.future.future_position_client import BitgetFuturePositionClient
 from exchange.bitget.future.future_trade_client import BitgetFutureTradeClient
+from exchange.bitget.spot.spot_trade_client import BitgetSpotTradeClient
 from exchange.bitget.stream_manager import BitgetStreamManager
 from exchange.bitget.websocket_public_client import BitgetWebsocketClient
 from exchange.kiwoom.rest_client import KiwoomRestClient
@@ -60,6 +61,14 @@ class Container(containers.DeclarativeContainer):
         BitgetWebsocketClient,
         url=config.bitget.websocket_public_url,
         stream_manager=bitget_stream_manager,
+    )
+
+    bitget_spot_trade_client = providers.Singleton(
+        BitgetSpotTradeClient,
+        base_url=config.bitget.base_url,
+        access_key=config.wallet.bitget.api_key,
+        secret_key=config.wallet.bitget.api_secret,
+        passphrase=config.wallet.bitget.passphrase,
     )
 
     kiwoom_rest_client = providers.Singleton(
