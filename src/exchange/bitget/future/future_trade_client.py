@@ -63,6 +63,8 @@ class BitgetFutureTradeClient(SignatureClient):
         side: str,
         order_type: str = 'limit',
         price: Optional[Decimal] = None,
+        preset_tp_price: Optional[Decimal] = None,
+        preset_sl_price: Optional[Decimal] = None,
     ):
         """
         Place a new order on Bitget.
@@ -78,6 +80,8 @@ class BitgetFutureTradeClient(SignatureClient):
             "side": side,
             "tradeSide": "open",
             "orderType": order_type,
+            "presetStopSurplusPrice": str(preset_tp_price) if preset_tp_price is not None else None,
+            "presetStopLossPrice": str(preset_sl_price) if preset_sl_price is not None else None,
         }
         return await self.post(path, json_body=body)
 
