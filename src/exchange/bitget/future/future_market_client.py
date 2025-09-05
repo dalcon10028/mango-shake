@@ -18,6 +18,15 @@ class BitgetFutureMarketClient:
             resp.raise_for_status()
             return await resp.json()
 
+    async def ticker(self, symbol: str):
+        """
+        Get ticker information for a specific symbol.
+        {"code":"00000","msg":"success","requestTime":1695794095685,"data":[{"symbol":"ETHUSD_231229","lastPr":"1829.3","askPr":"1829.8","bidPr":"1829.3","bidSz":"0.054","askSz":"0.785","high24h":"0","low24h":"0","ts":"1695794098184","change24h":"0","baseVolume":"0","quoteVolume":"0","usdtVolume":"0","openUtc":"0","changeUtc24h":"0","indexPrice":"1822.15","fundingRate":"0","holdingAmount":"9488.49","deliveryStartTime":"1693538723186","deliveryTime":"1703836799000","deliveryStatus":"delivery_normal","open24h":"0","markPrice":"1829"}]}
+        """
+        async with self._client.get("/api/v2/mix/market/ticker", params={ "productType": self._product_type, "symbol": symbol }) as resp:
+            resp.raise_for_status()
+            return await resp.json()
+
     async def get_klines(self, symbol: str, granularity: str, product_type: str = 'USDT-FUTURES', start_time: Optional[datetime] = None, end_time: Optional[datetime] = None, limit: int = 1000):
         params = {
             "symbol": symbol,
