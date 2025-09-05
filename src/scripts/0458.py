@@ -63,13 +63,17 @@ async def main(
 
         async with trade_client as trade_client:
             try:
+                ticker = await market_client.ticker(SYMBOL)
+                bid_price = Decimal(ticker['data'][0]['bidPr']) # 매수 호가
+
                 res = await trade_client.place_order(
                     symbol=SYMBOL,
                     product_type="USDT-FUTURES",
                     size=ENTRY_AMOUNT / prev_close,
-                    price=prev_close,
+                    price=bid_price,
                     side="buy",
                     order_type="limit",
+                    preset_tp_price=bid_price * Decimal("1.10") # tp 10%
                 )
                 logger.info(f"매수 주문 결과: {res}")
             except BitgetError as e:
