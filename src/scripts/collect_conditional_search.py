@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 
 from datetime import date
@@ -26,6 +27,8 @@ def to_decimal(v: Optional[str]) -> Decimal:
         return Decimal(0)
 
 
+results = []
+
 class ConditionSearchCollector:
     """Handle HTS 조건검색 WebSocket messages and persist results."""
 
@@ -38,14 +41,14 @@ class ConditionSearchCollector:
         match msg:
             case {"trnm": "CNSRLST", "return_code": 0, "data": data}:
                 await self._handle_cnsrlst(data)
-            case {"trnm": "CNSRREQ", "return_code": 0, "data": data}:
-                await self._handle_cnsrreq(data)
+            case {"trnm": "CNSRREQ", "return_code": 0, "data": data, "seq": condition_id}:
+                await self._handle_cnsrreq(condition_id, data)
             case _:
                 logger.debug("Unhandled message or non-success return_code")
 
     async def _handle_cnsrlst(self, data: List[List[str]]) -> None:
         """조건식 목록 수신 → 내부 상태 저장 + 각 조건식에 대한 검색 요청 발송"""
-        for item in data:
+        for item in data:  # 데모용으로 상위 5개 조건식만 처리
             seq, name = item[0], item[1]
             await self.ws.send(
                 {
@@ -57,11 +60,14 @@ class ConditionSearchCollector:
                     "next_key": "",
                 }
             )
+            # sleep
+            await asyncio.sleep(0.3)
         logger.info(f"Requested condition search for {len(data)} items")
 
-    async def _handle_cnsrreq(self, data: List[Dict[str, str]]) -> None:
+    async def _handle_cnsrreq(self, condition_id: str, data=None) -> None:
+        if data is None:
+            data = list()
 
-        results = []
         for item in data:
             symbol = item.get("9001")
             if not symbol:
@@ -69,6 +75,7 @@ class ConditionSearchCollector:
             results.append(
                 ConditionSearchResult(
                     base_date=self.base_date,
+                    condition_id=condition_id,
                     symbol=symbol,
                     name=item.get("302"),
                     price=to_decimal(item.get("10")),
@@ -87,43 +94,7 @@ class ConditionSearchCollector:
             logger.info("No valid results to upsert (no symbol present)")
             return
 
-        await self._upsert_results(results)
         logger.info(f"Condition Search Results: {results}")
-
-    async def _upsert_results(self, results: List[ConditionSearchResult]) -> None:
-        # Build clean dicts explicitly to avoid ORM internals in __dict__
-        records = []
-        for r in results:
-            records.append(
-                {
-                    "base_date": r.base_date,
-                    "symbol": r.symbol,
-                    "name": r.name,
-                    "price": r.price,
-                    "change_sign": r.change_sign,
-                    "change_price": r.change_price,
-                    "change_rate": r.change_rate,
-                    "volume_acc": r.volume_acc,
-                    "open": r.open,
-                    "high": r.high,
-                    "low": r.low,
-                    "response": r.response,
-                }
-            )
-
-        async with get_db() as session:
-            stmt = insert(ConditionSearchResult).values(records)
-            stmt = stmt.on_conflict_do_update(
-                index_elements=["base_date", "symbol"],
-                set_={
-                    col: stmt.excluded[col]
-                    for col in records[0].keys()
-                    if col not in ("base_date", "symbol")
-                },
-            )
-            await session.execute(stmt)
-            await session.commit()
-        logger.info(f"Upserted {len(records)} condition search results into database.")
 
 
 @inject
@@ -152,9 +123,47 @@ async def main(
     await ws_client.send({"trnm": "CNSRLST"})
 
     # 5) 데모: 5초간 실행 후 종료 (필요 시 취향껏 변경)
-    await asyncio.sleep(5)
+    await asyncio.sleep(60)
+
+    # Build clean dicts explicitly to avoid ORM internals in __dict__
+    records = []
+    for r in results:
+        records.append(
+            {
+                "base_date": r.base_date,
+                "condition_id": r.condition_id,
+                "symbol": r.symbol,
+                "name": r.name,
+                "price": r.price,
+                "change_sign": r.change_sign,
+                "change_price": r.change_price,
+                "change_rate": r.change_rate,
+                "volume_acc": r.volume_acc,
+                "open": r.open,
+                "high": r.high,
+                "low": r.low,
+                "response": r.response,
+            }
+        )
+
     await ws_client.disconnect()
     await ws_task
+
+
+
+    async with get_db() as session:
+        stmt = insert(ConditionSearchResult).values(records)
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["condition_id", "base_date", "symbol"],
+            set_={
+                col: stmt.excluded[col]
+                for col in records[0].keys()
+                if col not in ("condition_id", "base_date", "symbol")
+            },
+        )
+        await session.execute(stmt)
+        await session.commit()
+    logger.info(f"Upserted {len(records)} condition search results into database.")
 
 
 if __name__ == "__main__":

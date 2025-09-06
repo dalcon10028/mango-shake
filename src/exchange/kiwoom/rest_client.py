@@ -17,6 +17,7 @@ class KiwoomRestClient(BitgetClient):
         res = await super()._request(method, path, params, json_body, headers)
         if res.get("return_code", -1) != 0:
             raise Exception(f"Kiwoom API Error: {res}")
+        return res
 
     @cache
     async def get_access_token(self) -> str:
