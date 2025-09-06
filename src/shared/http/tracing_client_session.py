@@ -18,9 +18,20 @@ def _mask_sensitive_headers(headers: dict) -> dict:
             masked[k] = v
     return masked
 
+def _mask_sensitive_body(body: str) -> str:
+    """Return a copy of body with sensitive values masked."""
+    try:
+        data = json.loads(body)
+        if isinstance(data, dict):
+            for k in data.keys():
+                upper_k = k.upper()
+                if upper_k in ("APPKEY", "SECRETKEY"):
+                    data[k] = "****"
+        return json.dumps(data)
+    except Exception:
+        return body  # If body is not JSON, return as is
 
 logger = logging.getLogger("aiohttp.client")
-
 
 class TracingClientSession(aiohttp.ClientSession):
 
@@ -57,6 +68,7 @@ class TracingClientSession(aiohttp.ClientSession):
         logger.debug(f"[{trace_id}] ---> {method} {url}")
         logger.debug(f"[{trace_id}] Headers: {masked_headers}")
         if body_repr:
+            body_repr = _mask_sensitive_body(body_repr)
             logger.debug(f"[{trace_id}] Request Body: {body_repr}")
 
         return await super()._request(method, url, *args, **kwargs)
