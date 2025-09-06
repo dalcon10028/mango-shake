@@ -61,7 +61,7 @@ async def main(
         logger.info(f"전일 하락(어제 종가 {prev_close} < 그제 종가 {prev2_close}), 매수 시도")
         # 종가랑 현재가 중 더 낮은 가격에 매수 주문
 
-        async with trade_client as trade_client:
+        async with market_client as market_client:
             try:
                 ticker = await market_client.ticker(SYMBOL)
                 bid_price = Decimal(ticker['data'][0]['bidPr']) # 매수 호가
