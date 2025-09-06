@@ -1,0 +1,32 @@
+name: Collect Condition Search
+
+on:
+  schedule:
+    - cron: '0 12 * * 1-5' # 9:00(KST) PM weekday
+  workflow_dispatch:  # Allow manual trigger
+
+concurrency:
+  group: 0458-${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  run_orders_and_notify:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: .
+
+    steps:
+      - name: Trigger Script on EC2
+        uses: appleboy/ssh-action@v1.0.1
+        with:
+          host: ${{ secrets.GCP_CE_HOST }}
+          username: ${{ secrets.GCP_SSH_USER }}
+          key: ${{ secrets.GCP_SSH_KEY }}
+          port: 22
+          script: |
+            ./collect-condition-search.sh
