@@ -104,7 +104,6 @@ async def main(
     # 1) REST 토큰 발급
     async with kiwoom_rest_client as client:
         token = await client.get_access_token()
-        logger.info(f"access_token={token}")
 
     # 2) WS 클라이언트 구성 + 콜백 바인딩
     ws_client = KiwoomWS(
