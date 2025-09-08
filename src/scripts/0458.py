@@ -14,6 +14,7 @@ logging.basicConfig(level=logging.INFO)
 ENTRY_AMOUNT = Decimal("100")
 SYMBOL = "BTCUSDT"
 
+
 def _calc_tick_and_steps() -> tuple[Decimal, Decimal, Decimal, Decimal]:
     """Return (tick, qty_step, min_trade_num, min_trade_usdt)."""
     spec = {
