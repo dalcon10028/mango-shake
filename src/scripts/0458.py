@@ -3,7 +3,6 @@ import logging
 
 from decimal import Decimal
 from dependency_injector.wiring import inject, Provide
-
 from exchange.bitget import BitgetFutureMarketClient, BitgetFutureTradeClient
 from exchange.bitget.dto.bitget_error import BitgetError, BitgetErrorCode
 from exchange.bitget.future.future_position_client import BitgetFuturePositionClient
@@ -36,23 +35,23 @@ async def main(
             logger.error(f"주문 취소 중 오류 발생: {e}")
             return
 
-    async with market_client as market_client:
+    # async with market_client as market_client:
         # 최근 3개 일봉: [오늘, 어제, 그제] 순으로 온다고 가정
-        klines = await market_client.get_klines(
-            symbol=SYMBOL,
-            granularity="1Dutc",
-            limit=2
-        )
-        if len(klines) < 2:
-            logger.error(f"Kline 데이터가 부족합니다: {len(klines)}")
-            return
+    klines = await market_client.get_klines(
+        symbol=SYMBOL,
+        granularity="1Dutc",
+        limit=2
+    )
+    if len(klines) < 2:
+        logger.error(f"Kline 데이터가 부족합니다: {len(klines)}")
+        return
 
-        yesterday = klines[1]
-        day_before = klines[0]
+    yesterday = klines[1]
+    day_before = klines[0]
 
-        today_open = Decimal(yesterday[4])       # 오늘 시가 == 어제 종가
-        prev_close = Decimal(yesterday[4])   # 어제 종가
-        prev2_close = Decimal(day_before[4]) # 그제 종가
+    today_open = Decimal(yesterday[4])       # 오늘 시가 == 어제 종가
+    prev_close = Decimal(yesterday[4])   # 어제 종가
+    prev2_close = Decimal(day_before[4]) # 그제 종가
 
 
     # - 매수: 어제 종가 < 그제 종가 → 어제 종가에 지정가 매수 시도
@@ -61,27 +60,26 @@ async def main(
         logger.info(f"전일 하락(어제 종가 {prev_close} < 그제 종가 {prev2_close}), 매수 시도")
         # 종가랑 현재가 중 더 낮은 가격에 매수 주문
 
-        async with market_client as market_client:
-            try:
-                ticker = await market_client.ticker(SYMBOL)
-                bid_price = Decimal(ticker['data'][0]['bidPr']) # 매수 호가
+        try:
+            ticker = await market_client.ticker(SYMBOL)
+            bid_price = Decimal(ticker['data'][0]['bidPr']) # 매수 호가
 
-                res = await trade_client.place_order(
-                    symbol=SYMBOL,
-                    product_type="USDT-FUTURES",
-                    size=ENTRY_AMOUNT / prev_close,
-                    price=bid_price,
-                    side="buy",
-                    order_type="limit",
-                    preset_tp_price=bid_price * Decimal("1.10") # tp 10%
-                )
-                logger.info(f"매수 주문 결과: {res}")
-            except BitgetError as e:
-                if e.code == BitgetErrorCode.INSUFFICIENT_BALANCE:
-                    logger.warning(f"잔고 부족으로 매수 실패: {e}")
-                else:
-                    logger.error(f"매수 주문 중 오류 발생: {e}")
-                    return
+            res = await trade_client.place_order(
+                symbol=SYMBOL,
+                product_type="USDT-FUTURES",
+                size=ENTRY_AMOUNT / prev_close,
+                price=bid_price,
+                side="buy",
+                order_type="limit",
+                preset_tp_price=bid_price * Decimal("1.10") # tp 10%
+            )
+            logger.info(f"매수 주문 결과: {res}")
+        except BitgetError as e:
+            if e.code == BitgetErrorCode.INSUFFICIENT_BALANCE:
+                logger.warning(f"잔고 부족으로 매수 실패: {e}")
+            else:
+                logger.error(f"매수 주문 중 오류 발생: {e}")
+                return
 
     elif prev_close > prev2_close:
         logger.info(f"전일 상승(어제 종가 {prev_close} > 그제 종가 {prev2_close}), 매도 점검")
