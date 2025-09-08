@@ -54,7 +54,7 @@ jobs:
           poetry run python src/scripts/collect_daily_candles.py $BD
 
       - name: Send Slack notification
-        if: always()
+        if: failure()
         uses: slackapi/slack-github-action@v2.1.1
         with:
           webhook-type: incoming-webhook
