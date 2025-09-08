@@ -1,7 +1,7 @@
 import asyncio
 import logging
 
-from decimal import Decimal
+from decimal import Decimal, ROUND_DOWN
 from dependency_injector.wiring import inject, Provide
 from exchange.bitget import BitgetFutureMarketClient, BitgetFutureTradeClient
 from exchange.bitget.dto.bitget_error import BitgetError, BitgetErrorCode
@@ -13,6 +13,68 @@ logging.basicConfig(level=logging.INFO)
 
 ENTRY_AMOUNT = Decimal("100")
 SYMBOL = "BTCUSDT"
+
+def _calc_tick_and_steps() -> tuple[Decimal, Decimal, Decimal, Decimal]:
+    """Return (tick, qty_step, min_trade_num, min_trade_usdt)."""
+    spec = {
+        "symbol": "BTCUSDT",
+        "baseCoin": "BTC",
+        "quoteCoin": "USDT",
+        "buyLimitPriceRatio": "0.05",
+        "sellLimitPriceRatio": "0.05",
+        "feeRateUpRatio": "0.005",
+        "makerFeeRate": "0.0002",
+        "takerFeeRate": "0.0006",
+        "openCostUpRatio": "0.01",
+        "supportMarginCoins": ["USDT"],
+        "minTradeNum": "0.0001",
+        "priceEndStep": "1",
+        "volumePlace": "4",
+        "pricePlace": "1",
+        "sizeMultiplier": "0.0001",
+        "symbolType": "perpetual",
+        "minTradeUSDT": "5",
+        "maxSymbolOrderNum": "200",
+        "maxProductOrderNum": "1000",
+        "maxPositionNum": "150",
+        "symbolStatus": "normal",
+        "offTime": "-1",
+        "limitOpenTime": "-1",
+        "deliveryTime": "",
+        "deliveryStartTime": "",
+        "deliveryPeriod": "",
+        "launchTime": "",
+        "fundInterval": "8",
+        "minLever": "1",
+        "maxLever": "125",
+        "posLimit": "0.1",
+        "maintainTime": "",
+        "openTime": "",
+        "maxMarketOrderQty": "220",
+        "maxOrderQty": "1200",
+    }
+
+    price_place = int(spec.get("pricePlace", "1"))
+    price_end_step = Decimal(str(spec.get("priceEndStep", "1")))
+    # tick = 10^-pricePlace * priceEndStep
+    tick = (Decimal(1) / (Decimal(10) ** price_place)) * price_end_step
+
+    # size step: prefer sizeMultiplier; fallback to 10^-volumePlace
+    if spec.get("sizeMultiplier") is not None:
+        qty_step = Decimal(str(spec["sizeMultiplier"]))
+    else:
+        vp = int(spec.get("volumePlace", "4"))
+        qty_step = Decimal(1) / (Decimal(10) ** vp)
+
+    min_trade_num = Decimal(str(spec.get("minTradeNum", "0")))
+    min_trade_usdt = Decimal(str(spec.get("minTradeUSDT", "0")))
+    return tick, qty_step, min_trade_num, min_trade_usdt
+
+
+def _round_to_step(x: Decimal, step: Decimal) -> Decimal:
+    if step == 0:
+        return x
+    return (x / step).to_integral_value(rounding=ROUND_DOWN) * step
 
 
 @inject
@@ -66,16 +128,35 @@ async def main(
 
         try:
             ticker = await market_client.ticker(SYMBOL)
-            bid_price = Decimal(ticker["data"][0]["bidPr"])  # 매수 호가
+            bid_price = Decimal(ticker["data"][0]["bidPr"])  # 최우선 매수호가
+
+            tick, qty_step, min_trade_num, min_trade_usdt = _calc_tick_and_steps()
+
+            # size: ENTRY_AMOUNT / price → step 내림 + 최소수량 보정
+            raw_qty = ENTRY_AMOUNT / prev_close
+            qty = _round_to_step(raw_qty, qty_step)
+            if qty < min_trade_num:
+                qty = min_trade_num
+
+            # 가격: tick 내림 정렬
+            price = _round_to_step(bid_price, tick)
+            tp = _round_to_step(price * Decimal("1.05"), tick)
+
+            # 최소 주문 금액(USDT) 보정: notional >= min_trade_usdt
+            if price * qty < min_trade_usdt:
+                # 한 스텝 올려봄
+                qty = _round_to_step(min_trade_usdt / price, qty_step)
+                if qty < min_trade_num:
+                    qty = min_trade_num
 
             res = await trade_client.place_order(
                 symbol=SYMBOL,
                 product_type="USDT-FUTURES",
-                size=ENTRY_AMOUNT / prev_close,
+                size=qty,
                 price=bid_price,
                 side="buy",
                 order_type="limit",
-                preset_tp_price=bid_price * Decimal("1.05"),  # tp 5%
+                preset_tp_price=tp,  # 5% TP, tick 정렬 완료
             )
             logger.info(f"매수 주문 결과: {res}")
         except BitgetError as e:
