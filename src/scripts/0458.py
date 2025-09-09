@@ -1,6 +1,7 @@
 import asyncio
 import logging
 
+from dataclasses import dataclass
 from decimal import Decimal, ROUND_DOWN
 from dependency_injector.wiring import inject, Provide
 from exchange.bitget import BitgetFutureMarketClient, BitgetFutureTradeClient
@@ -13,6 +14,30 @@ logging.basicConfig(level=logging.INFO)
 
 ENTRY_AMOUNT = Decimal("100")
 SYMBOL = "BTCUSDT"
+
+
+@dataclass(frozen=True)
+class Candle:
+    start_time: int  # timestamp in milliseconds
+    open: Decimal
+    high: Decimal
+    low: Decimal
+    close: Decimal
+    volume: Decimal
+
+    @property
+    def is_bullish(self) -> bool:
+        return self.close > self.open
+
+    @property
+    def is_bearish(self) -> bool:
+        return self.close < self.open
+
+    @property
+    def change_rate(self) -> Decimal:
+        if self.open == 0:
+            return Decimal(0)
+        return (self.close - self.open) / self.open * Decimal(100)
 
 
 def _calc_tick_and_steps() -> tuple[Decimal, Decimal, Decimal, Decimal]:
@@ -105,36 +130,42 @@ async def main(
             logger.error(f"주문 취소 중 오류 발생: {e}")
             return
 
-    # async with market_client as market_client:
-    # 최근 3개 4시간봉 조회 (현재 진행 중인 봉 제외)
-    klines = await market_client.get_klines(symbol=SYMBOL, granularity="4H", limit=2)
-    if len(klines) < 2:
+    # 최근 3개 1시간봉 조회 (현재 진행 중인 봉 제외)
+    # 인덱스는 빠른시간순
+    klines = await market_client.get_klines(symbol=SYMBOL, granularity="1H", limit=3)
+    klines = [
+        *map(
+            lambda k: Candle(
+                start_time=k[0],
+                open=Decimal(k[1]),
+                high=Decimal(k[2]),
+                low=Decimal(k[3]),
+                close=Decimal(k[4]),
+                volume=Decimal(k[5]),
+            ),
+            klines,
+        )
+    ]
+
+    if len(klines) < 3:
         logger.error(f"Kline 데이터가 부족합니다: {len(klines)}")
         return
 
-    yesterday = klines[1]
-    day_before = klines[0]
+    ticker = await market_client.ticker(SYMBOL)
 
-    today_open = Decimal(yesterday[4])  # 오늘 시가 == 어제 종가
-    prev_close = Decimal(yesterday[4])  # 어제 종가
-    prev2_close = Decimal(day_before[4])  # 그제 종가
-
-    # - 매수: 어제 종가 < 그제 종가 → 어제 종가에 지정가 매수 시도
-    # - 매도: 어제 종가 > 그제 종가 AND 오늘 시가 ≥ 평단×1.05 → 전량 매도
-    if prev_close < prev2_close:
+    # 2번 연속 하락 캔들인 경우 매수
+    if klines[0].is_bearish and klines[1].is_bearish:
         logger.info(
-            f"전일 하락(어제 종가 {prev_close} < 그제 종가 {prev2_close}), 매수 시도"
+            f"연속 하락(2캔들 전 {klines[0].change_rate:.2f}% ↓, 1캔들 전 {klines[1].change_rate:.2f}% ↓), 매수 점검"
         )
-        # 종가랑 현재가 중 더 낮은 가격에 매수 주문
 
         try:
-            ticker = await market_client.ticker(SYMBOL)
             bid_price = Decimal(ticker["data"][0]["bidPr"])  # 최우선 매수호가
 
             tick, qty_step, min_trade_num, min_trade_usdt = _calc_tick_and_steps()
 
             # size: ENTRY_AMOUNT / price → step 내림 + 최소수량 보정
-            raw_qty = ENTRY_AMOUNT / prev_close
+            raw_qty = ENTRY_AMOUNT / bid_price
             qty = _round_to_step(raw_qty, qty_step)
             if qty < min_trade_num:
                 qty = min_trade_num
@@ -157,7 +188,7 @@ async def main(
                 price=bid_price,
                 side="buy",
                 order_type="limit",
-                preset_tp_price=tp,  # 5% TP, tick 정렬 완료
+                # preset_tp_price=tp,  # 5% TP, tick 정렬 완료
             )
             logger.info(f"매수 주문 결과: {res}")
         except BitgetError as e:
@@ -167,10 +198,9 @@ async def main(
                 logger.error(f"매수 주문 중 오류 발생: {e}")
                 return
 
-    elif prev_close > prev2_close:
-        logger.info(
-            f"전일 상승(어제 종가 {prev_close} > 그제 종가 {prev2_close}), 매도 점검"
-        )
+    # 직전 캔들이 상승이면 매도 점검
+    elif klines[1].is_bullish:
+        logger.info(f"직전 캔들 상승({klines[1].change_rate:.2f}% ↑), 매도 점검")
         async with position_client as position_client:
             positions: list[dict] = await position_client.get_position(
                 symbol=SYMBOL, product_type="USDT-FUTURES"
@@ -183,9 +213,13 @@ async def main(
 
             avg_price = Decimal(position["openPriceAvg"])
             size = Decimal(position["available"])
-            if size > 0 and today_open >= avg_price * Decimal("1.05"):
+
+            # 최우선 매도호가
+            ask_price = Decimal(ticker["data"][0]["askPr"])
+
+            if size > 0 and ask_price >= avg_price * Decimal("1.05"):
                 logger.info(
-                    f"수익 실현 조건 충족: 오늘 시가 {today_open} ≥ 평단×1.05 ({avg_price * Decimal('1.05')})"
+                    f"수익 실현 조건 충족: 현재가(최우선매도호가) {ask_price} >= 평균매수가 {avg_price} * 1.05"
                 )
                 res = await trade_client.flash_close_position(symbol=SYMBOL)
                 logger.info(f"매도 주문 결과: {res}")
