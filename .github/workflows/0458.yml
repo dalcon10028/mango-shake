@@ -2,7 +2,7 @@ name: 0458 Strategy
 
 on:
   schedule:
-    - cron: '*/15 * * * *'  # every 15 minutes (UTC)
+    - cron: '0 * * * *'  # every hour (UTC)
   workflow_dispatch:  # Allow manual trigger
 
 concurrency:
