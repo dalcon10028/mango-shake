@@ -53,7 +53,7 @@ jobs:
           poetry run python src/scripts/0458.py $BD
 
       - name: Send Slack notification
-        if: always()
+        if: failure()
         uses: slackapi/slack-github-action@v2.1.1
         with:
           webhook-type: incoming-webhook
