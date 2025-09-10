@@ -34,6 +34,10 @@ class Candle:
         return self.close < self.open
 
     @property
+    def body_size(self) -> Decimal:
+        return abs(self.close - self.open)
+
+    @property
     def change_rate(self) -> Decimal:
         if self.open == 0:
             return Decimal(0)
@@ -130,9 +134,9 @@ async def main(
             logger.error(f"주문 취소 중 오류 발생: {e}")
             return
 
-    # 최근 3개 1시간봉 조회 (현재 진행 중인 봉 제외)
+    # 최근 21개 1시간봉 조회 (현재 진행 중인 봉 포함)
     # 인덱스는 빠른시간순
-    klines = await market_client.get_klines(symbol=SYMBOL, granularity="1H", limit=3)
+    klines = await market_client.get_klines(symbol=SYMBOL, granularity="1H", limit=21)
     klines = [
         *map(
             lambda k: Candle(
@@ -153,10 +157,14 @@ async def main(
 
     ticker = await market_client.ticker(SYMBOL)
 
-    # 2번 연속 하락 캔들인 경우 매수
-    if klines[0].is_bearish and klines[1].is_bearish:
+    # 하락캔들이면서, 20개 캔들 평균보다 길이가 긴 캔들인 경우 매수 점검
+
+    # 20개 캔들 평균 (인덱스 0 ~ 19 제외)
+    avg_body_size = sum(k.body_size for k in klines[0:20]) / Decimal(20)
+
+    if klines[-2].is_bearish and klines[-2].body_size > avg_body_size:
         logger.info(
-            f"연속 하락(2캔들 전 {klines[0].change_rate:.2f}% ↓, 1캔들 전 {klines[1].change_rate:.2f}% ↓), 매수 점검"
+            f"직전 캔들 하락({klines[1].change_rate:.2f}% ↓) + 몸통길이 {klines[-2].body_size} > 20개평균 {avg_body_size}, 매수 점검"
         )
 
         try:
