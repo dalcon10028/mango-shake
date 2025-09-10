@@ -225,9 +225,9 @@ async def main(
             # 최우선 매도호가
             ask_price = Decimal(ticker["data"][0]["askPr"])
 
-            if size > 0 and ask_price >= avg_price * Decimal("1.05"):
+            if size > 0 and ask_price >= avg_price * Decimal("1.005"):
                 logger.info(
-                    f"수익 실현 조건 충족: 현재가(최우선매도호가) {ask_price} >= 평균매수가 {avg_price} * 1.05"
+                    f"수익 실현 조건 충족: 현재가(최우선매도호가) {ask_price} >= 평균매수가 {avg_price} * 1.005"
                 )
                 res = await trade_client.flash_close_position(symbol=SYMBOL)
                 logger.info(f"매도 주문 결과: {res}")
