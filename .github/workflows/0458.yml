@@ -1,6 +1,8 @@
 name: 0458 Strategy
 
 on:
+  repository_dispatch:
+    types: [ gcp-cron ]
   schedule:
     - cron: '0 * * * *'  # every hour (UTC)
   workflow_dispatch:  # Allow manual trigger
