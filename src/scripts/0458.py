@@ -207,8 +207,8 @@ async def main(
                 return
 
     # 직전 캔들이 상승이면 매도 점검
-    elif klines[1].is_bullish:
-        logger.info(f"직전 캔들 상승({klines[1].change_rate:.2f}% ↑), 매도 점검")
+    elif klines[-2].is_bullish:
+        logger.info(f"직전 캔들 상승({klines[-2].change_rate:.2f}% ↑), 매도 점검")
         async with position_client as position_client:
             positions: list[dict] = await position_client.get_position(
                 symbol=SYMBOL, product_type="USDT-FUTURES"
