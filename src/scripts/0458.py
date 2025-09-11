@@ -136,7 +136,7 @@ async def main(
 
     # 최근 21개 1시간봉 조회 (현재 진행 중인 봉 포함)
     # 인덱스는 빠른시간순
-    klines = await market_client.get_klines(symbol=SYMBOL, granularity="1H", limit=21)
+    klines = await market_client.get_klines(symbol=SYMBOL, granularity="1H", limit=20)
     klines = [
         *map(
             lambda k: Candle(
@@ -160,9 +160,9 @@ async def main(
     # 하락캔들이면서, 20개 캔들 평균보다 길이가 긴 캔들인 경우 매수 점검
 
     # 20개 캔들 평균 (인덱스 0 ~ 19 제외)
-    avg_body_size = sum(k.body_size for k in klines[0:20]) / Decimal(20)
+    avg_body_size = sum(k.body_size for k in klines) / Decimal(20)
 
-    if klines[-2].is_bearish and klines[-2].body_size > avg_body_size:
+    if klines[-1].is_bearish and klines[-1].body_size > avg_body_size:
         logger.info(
             f"직전 캔들 하락({klines[1].change_rate:.2f}% ↓) + 몸통길이 {klines[-2].body_size} > 20개평균 {avg_body_size}, 매수 점검"
         )
@@ -207,8 +207,8 @@ async def main(
                 return
 
     # 직전 캔들이 상승이면 매도 점검
-    elif klines[-2].is_bullish:
-        logger.info(f"직전 캔들 상승({klines[-2].change_rate:.2f}% ↑), 매도 점검")
+    elif klines[-1].is_bullish:
+        logger.info(f"직전 캔들 상승({klines[-1].change_rate:.2f}% ↑), 매도 점검")
         async with position_client as position_client:
             positions: list[dict] = await position_client.get_position(
                 symbol=SYMBOL, product_type="USDT-FUTURES"
