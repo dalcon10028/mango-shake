@@ -206,7 +206,7 @@ async def main(
                 logger.error(f"매수 주문 중 오류 발생: {e}")
                 return
 
-    # 직전 캔들이 상승이면 매도 점검
+    # 직전 캔들이 상승이면 매도 ���검
     elif klines[-1].is_bullish:
         logger.info(f"직전 캔들 상승({klines[-1].change_rate:.2f}% ↑), 매도 점검")
         async with position_client as position_client:
@@ -225,9 +225,15 @@ async def main(
             # 최우선 매도호가
             ask_price = Decimal(ticker["data"][0]["askPr"])
 
-            if size > 0 and ask_price >= avg_price * Decimal("1.003"):
+            # 최근 20개 캔들 평균 변동율 (퍼센트)
+            avg_change_rate_20 = sum(k.change_rate for k in klines[-20:]) / Decimal(20)
+            # 현재 기대 수익 변동율 (퍼센트)
+            current_gain_rate = (ask_price - avg_price) / avg_price * Decimal(100)
+
+            # 현재 변동율이 최근 20개 평균 변동율 이상일 때 부분 청산
+            if size > 0 and current_gain_rate >= avg_change_rate_20:
                 logger.info(
-                    f"수익 실현 조건 충족: 현재가(최우선매도호가) {ask_price} >= 평균매수가 {avg_price} * 1.003"
+                    f"수익 실현 조건 충족: 현재수익률 {current_gain_rate:.4f}% >= 20개평균변동율 {avg_change_rate_20:.4f}%"
                 )
                 # 반익절 (50%) 수행: 포지션 방향 따라 hold_side 지정
                 tick, qty_step, min_trade_num, min_trade_usdt = _calc_tick_and_steps()
@@ -242,7 +248,9 @@ async def main(
                 )
                 logger.info(f"부분 청산(50%) 결과: {res}")
             else:
-                logger.info("매도 조건 미충족, 대기")
+                logger.info(
+                    f"매도 조건 미충족 (현재수익률 {current_gain_rate:.4f}% < 평균변동율 {avg_change_rate_20:.4f}%), 대기"
+                )
 
     else:
         logger.info("전일 변동 없음(어제 종가 == 그제 종가), 대기")
