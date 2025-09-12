@@ -180,13 +180,15 @@ class BitgetFutureTradeClient(SignatureClient):
         if total <= 0:
             return {"status": "empty"}
 
-        close_size = (total * Decimal(str(fraction)))
+        close_size = total * Decimal(str(fraction))
 
         # step 적용
         if size_step:
             if size_step <= 0:
                 raise ValueError("size_step 은 양수여야 합니다")
-            quant_factor = (close_size / size_step).to_integral_value(rounding=ROUND_DOWN)
+            quant_factor = (close_size / size_step).to_integral_value(
+                rounding=ROUND_DOWN
+            )
             close_size = quant_factor * size_step
         if min_size and close_size < min_size:
             return {"status": "below_min_size"}
@@ -201,6 +203,12 @@ class BitgetFutureTradeClient(SignatureClient):
             order_type=order_type,
             price=None,
             trade_side="close",
-            margin_mode=target.get("marginMode", "crossed") if isinstance(target, dict) else "crossed",
-            margin_coin=target.get("marginCoin", "USDT") if isinstance(target, dict) else "USDT",
+            margin_mode=(
+                target.get("marginMode", "crossed")
+                if isinstance(target, dict)
+                else "crossed"
+            ),
+            margin_coin=(
+                target.get("marginCoin", "USDT") if isinstance(target, dict) else "USDT"
+            ),
         )
