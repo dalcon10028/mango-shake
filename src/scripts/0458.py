@@ -229,8 +229,18 @@ async def main(
                 logger.info(
                     f"수익 실현 조건 충족: 현재가(최우선매도호가) {ask_price} >= 평균매수가 {avg_price} * 1.003"
                 )
-                res = await trade_client.flash_close_position(symbol=SYMBOL)
-                logger.info(f"매도 주문 결과: {res}")
+                # 반익절 (50%) 수행: 포지션 방향 따라 hold_side 지정
+                tick, qty_step, min_trade_num, min_trade_usdt = _calc_tick_and_steps()
+                res = await trade_client.partial_close_position(
+                    symbol=SYMBOL,
+                    product_type="USDT-FUTURES",
+                    hold_side=position.get("holdSide", "long"),
+                    fraction=0.5,
+                    order_type="market",
+                    size_step=qty_step,
+                    min_size=min_trade_num,
+                )
+                logger.info(f"부분 청산(50%) 결과: {res}")
             else:
                 logger.info("매도 조건 미충족, 대기")
 
