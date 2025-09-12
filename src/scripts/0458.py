@@ -12,7 +12,7 @@ from shared.containers import Container
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
-ENTRY_AMOUNT = Decimal("280")
+ENTRY_AMOUNT = Decimal("550")
 SYMBOL = "BTCUSDT"
 
 
