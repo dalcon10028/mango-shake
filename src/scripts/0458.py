@@ -253,7 +253,9 @@ async def main(
                 )
 
     else:
-        logger.info("전일 변동 없음(어제 종가 == 그제 종가), 대기")
+        logger.info(
+            f"전일 변동 없음(어제 종가({klines[-1].close}) == 오늘 시가({klines[-1].open})), 대기"
+        )
 
     logger.info(res)
 
