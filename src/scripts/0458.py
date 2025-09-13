@@ -46,9 +46,9 @@ class Candle:
 
 def _calc_tick_and_steps() -> tuple[Decimal, Decimal, Decimal, Decimal]:
     """Return (tick, qty_step, min_trade_num, min_trade_usdt)."""
-    spec = {
-        "symbol": "BTCUSDT",
-        "baseCoin": "BTC",
+    spec =  {
+        "symbol": "ETHUSDT",
+        "baseCoin": "ETH",
         "quoteCoin": "USDT",
         "buyLimitPriceRatio": "0.05",
         "sellLimitPriceRatio": "0.05",
@@ -56,12 +56,14 @@ def _calc_tick_and_steps() -> tuple[Decimal, Decimal, Decimal, Decimal]:
         "makerFeeRate": "0.0002",
         "takerFeeRate": "0.0006",
         "openCostUpRatio": "0.01",
-        "supportMarginCoins": ["USDT"],
-        "minTradeNum": "0.0001",
+        "supportMarginCoins": [
+        "USDT"
+        ],
+        "minTradeNum": "0.01",
         "priceEndStep": "1",
-        "volumePlace": "4",
-        "pricePlace": "1",
-        "sizeMultiplier": "0.0001",
+        "volumePlace": "2",
+        "pricePlace": "2",
+        "sizeMultiplier": "0.01",
         "symbolType": "perpetual",
         "minTradeUSDT": "5",
         "maxSymbolOrderNum": "200",
@@ -76,12 +78,12 @@ def _calc_tick_and_steps() -> tuple[Decimal, Decimal, Decimal, Decimal]:
         "launchTime": "",
         "fundInterval": "8",
         "minLever": "1",
-        "maxLever": "125",
-        "posLimit": "0.1",
+        "maxLever": "100",
+        "posLimit": "0.05",
         "maintainTime": "",
         "openTime": "",
-        "maxMarketOrderQty": "220",
-        "maxOrderQty": "1200",
+        "maxMarketOrderQty": "1900",
+        "maxOrderQty": "9900"
     }
 
     price_place = int(spec.get("pricePlace", "1"))
