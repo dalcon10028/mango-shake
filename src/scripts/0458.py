@@ -159,12 +159,12 @@ async def main(
 
     ticker = await market_client.ticker(SYMBOL)
 
-    # 하락캔들이면서, 20개 캔들 평균보다 길이가 긴 캔들인 경우 매수 점검
+    # 하락캔들이면서, 20개 캔들 평균보다 길이가 길고, 최근 3개 캔들보다 몸통이 큰 캔들인 경우 매수 점검
 
     # 20개 캔들 평균 (인덱스 0 ~ 19 제외)
     avg_body_size = sum(k.body_size for k in klines) / Decimal(20)
 
-    if klines[-1].is_bearish and klines[-1].body_size > avg_body_size:
+    if klines[-1].is_bearish and klines[-1].body_size > avg_body_size and klines[-1].body_size > klines[-2].body_size and klines[-1].body_size > klines[-3].body_size:
         logger.info(
             f"직전 캔들 하락({klines[1].change_rate:.2f}% ↓) + 몸통길이 {klines[-2].body_size} > 20개평균 {avg_body_size}, 매수 점검"
         )
