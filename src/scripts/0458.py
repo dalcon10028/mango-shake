@@ -242,7 +242,7 @@ async def main(
                 res = await trade_client.place_order(
                     symbol=SYMBOL,
                     product_type="USDT-FUTURES",
-                    size=size,
+                    size=_round_to_step(size * Decimal("0.5"), qty_step),
                     order_type="limit",
                     side="sell",
                     trade_side="close",
