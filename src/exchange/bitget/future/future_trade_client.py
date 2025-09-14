@@ -89,6 +89,7 @@ class BitgetFutureTradeClient(SignatureClient):
             "side": side,
             "tradeSide": trade_side,
             "orderType": order_type,
+            "reduceOnly": "YES" if trade_side == "close" else "NO",
             "presetStopSurplusPrice": (
                 str(preset_tp_price) if preset_tp_price is not None else None
             ),

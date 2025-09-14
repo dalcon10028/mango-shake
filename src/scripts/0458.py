@@ -239,14 +239,14 @@ async def main(
                 )
                 # 반익절 (50%) 수행: 포지션 방향 따라 hold_side 지정
                 tick, qty_step, min_trade_num, min_trade_usdt = _calc_tick_and_steps()
-                res = await trade_client.partial_close_position(
+                res = await trade_client.place_order(
                     symbol=SYMBOL,
                     product_type="USDT-FUTURES",
-                    hold_side=position.get("holdSide", "long"),
-                    fraction=0.5,
-                    order_type="market",
-                    size_step=qty_step,
-                    min_size=min_trade_num,
+                    size=size,
+                    order_type="limit",
+                    side="sell",
+                    trade_side="close",
+                    price=ask_price
                 )
                 logger.info(f"부분 청산(50%) 결과: {res}")
             else:
