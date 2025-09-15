@@ -195,10 +195,9 @@ async def main(
                 symbol=SYMBOL,
                 product_type="USDT-FUTURES",
                 size=qty,
-                price=bid_price,
+                price=price,            # tick-rounded price
                 side="buy",
                 order_type="limit",
-                # preset_tp_price=tp,  # 5% TP, tick 정렬 완료
             )
             logger.info(f"매수 주문 결과: {res}")
         except BitgetError as e:
@@ -239,14 +238,20 @@ async def main(
                 )
                 # 반익절 (50%) 수행: 포지션 방향 따라 hold_side 지정
                 tick, qty_step, min_trade_num, min_trade_usdt = _calc_tick_and_steps()
+                margin_mode = (position.get("marginMode") or "crossed").lower()
+                hold_side = (position.get("holdSide") or "long").lower()
+                limit_price = _round_to_step(ask_price, tick)
+
                 res = await trade_client.place_order(
                     symbol=SYMBOL,
                     product_type="USDT-FUTURES",
                     size=_round_to_step(size * Decimal("0.5"), qty_step),
                     order_type="limit",
                     side="sell",
+                    price=limit_price,
                     trade_side="close",
-                    price=ask_price
+                    hold_side=hold_side,
+                    margin_mode=margin_mode,
                 )
                 logger.info(f"부분 청산(50%) 결과: {res}")
             else:

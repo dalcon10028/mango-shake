@@ -61,6 +61,7 @@ class BitgetFutureTradeClient(SignatureClient):
 
     async def place_order(
         self,
+        *,
         symbol: str,
         product_type: str,
         size: Decimal,
@@ -69,9 +70,11 @@ class BitgetFutureTradeClient(SignatureClient):
         price: Optional[Decimal] = None,
         preset_tp_price: Optional[Decimal] = None,
         preset_sl_price: Optional[Decimal] = None,
-        trade_side: str = "open",  # "open" or "close"
-        margin_mode: str = "crossed",
-        margin_coin: str = "USDT",
+        trade_side: Optional[str] = None,   # hedge-mode: "open" | "close"
+        hold_side: Optional[str] = None,    # hedge-mode: "long" | "short"
+        reduce_only: Optional[str] = None,  # one-way: "YES" | "NO"
+        margin_mode: Optional[str] = None,
+        margin_coin: Optional[str] = "USDT",
     ):
         """
         Place a new order on Bitget.
@@ -80,22 +83,16 @@ class BitgetFutureTradeClient(SignatureClient):
         """
         path = "/api/v2/mix/order/place-order"
         body = {
-            "symbol": symbol,
-            "productType": product_type,
-            "marginMode": margin_mode,
-            "marginCoin": margin_coin,
-            "size": str(size),
-            "price": str(price) if price is not None else None,
-            "side": side,
-            "tradeSide": trade_side,
-            "orderType": order_type,
-            "reduceOnly": "YES" if trade_side == "close" else "NO",
-            "presetStopSurplusPrice": (
-                str(preset_tp_price) if preset_tp_price is not None else None
-            ),
-            "presetStopLossPrice": (
-                str(preset_sl_price) if preset_sl_price is not None else None
-            ),
+            "symbol": symbol, "productType": product_type,
+            **({"marginMode": margin_mode} if margin_mode else {}),
+            **({"marginCoin": margin_coin} if margin_coin else {}),
+            "size": str(size), "side": side, "orderType": order_type,
+            **({"price": str(price)} if (order_type=="limit" and price is not None) else {}),
+            **({"tradeSide": trade_side} if trade_side else {}),
+            **({"holdSide": hold_side} if hold_side else {}),
+            **({"reduceOnly": reduce_only} if reduce_only else {}),
+            **({"presetStopSurplusPrice": str(preset_tp_price)} if preset_tp_price is not None else {}),
+            **({"presetStopLossPrice": str(preset_sl_price)} if preset_sl_price is not None else {}),
         }
         return await self.post(path, json_body=body)
 
@@ -202,8 +199,8 @@ class BitgetFutureTradeClient(SignatureClient):
             size=close_size,
             side=side,
             order_type=order_type,
-            price=None,
-            trade_side="close",
+            trade_side="close",                # hedge-mode close
+            hold_side=hold_side,               # specify long/short explicitly
             margin_mode=(
                 target.get("marginMode", "crossed")
                 if isinstance(target, dict)
