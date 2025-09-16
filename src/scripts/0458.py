@@ -164,48 +164,50 @@ async def main(
     # 20개 캔들 평균 (인덱스 0 ~ 19 제외)
     avg_body_size = sum(k.body_size for k in klines) / Decimal(20)
 
-    if klines[-1].is_bearish and klines[-1].body_size > avg_body_size and klines[-1].body_size > klines[-2].body_size and klines[-1].body_size > klines[-3].body_size:
+    if klines[-1].is_bearish:
         logger.info(
             f"직전 캔들 하락({klines[1].change_rate:.2f}% ↓) + 몸통길이 {klines[-2].body_size} > 20개평균 {avg_body_size}, 매수 점검"
         )
 
-        try:
-            bid_price = Decimal(ticker["data"][0]["bidPr"])  # 최우선 매수호가
+        if klines[-1].body_size > avg_body_size and klines[-1].body_size > klines[-2].body_size and klines[-1].body_size > klines[-3].body_size:
 
-            tick, qty_step, min_trade_num, min_trade_usdt = _calc_tick_and_steps()
+            try:
+                bid_price = Decimal(ticker["data"][0]["bidPr"])  # 최우선 매수호가
 
-            # size: ENTRY_AMOUNT / price → step 내림 + 최소수량 보정
-            raw_qty = ENTRY_AMOUNT / bid_price
-            qty = _round_to_step(raw_qty, qty_step)
-            if qty < min_trade_num:
-                qty = min_trade_num
+                tick, qty_step, min_trade_num, min_trade_usdt = _calc_tick_and_steps()
 
-            # 가격: tick 내림 정렬
-            price = _round_to_step(bid_price, tick)
-            tp = _round_to_step(price * Decimal("1.05"), tick)
-
-            # 최소 주문 금액(USDT) 보정: notional >= min_trade_usdt
-            if price * qty < min_trade_usdt:
-                # 한 스텝 올려봄
-                qty = _round_to_step(min_trade_usdt / price, qty_step)
+                # size: ENTRY_AMOUNT / price → step 내림 + 최소수량 보정
+                raw_qty = ENTRY_AMOUNT / bid_price
+                qty = _round_to_step(raw_qty, qty_step)
                 if qty < min_trade_num:
                     qty = min_trade_num
 
-            res = await trade_client.place_order(
-                symbol=SYMBOL,
-                product_type="USDT-FUTURES",
-                size=qty,
-                price=price,            # tick-rounded price
-                side="buy",
-                order_type="limit",
-            )
-            logger.info(f"매수 주문 결과: {res}")
-        except BitgetError as e:
-            if e.code == BitgetErrorCode.INSUFFICIENT_BALANCE:
-                logger.warning(f"잔고 부족으로 매수 실패: {e}")
-            else:
-                logger.error(f"매수 주문 중 오류 발생: {e}")
-                return
+                # 가격: tick 내림 정렬
+                price = _round_to_step(bid_price, tick)
+                tp = _round_to_step(price * Decimal("1.05"), tick)
+
+                # 최소 주문 금액(USDT) 보정: notional >= min_trade_usdt
+                if price * qty < min_trade_usdt:
+                    # 한 스텝 올려봄
+                    qty = _round_to_step(min_trade_usdt / price, qty_step)
+                    if qty < min_trade_num:
+                        qty = min_trade_num
+
+                res = await trade_client.place_order(
+                    symbol=SYMBOL,
+                    product_type="USDT-FUTURES",
+                    size=qty,
+                    price=price,            # tick-rounded price
+                    side="buy",
+                    order_type="limit",
+                )
+                logger.info(f"매수 주문 결과: {res}")
+            except BitgetError as e:
+                if e.code == BitgetErrorCode.INSUFFICIENT_BALANCE:
+                    logger.warning(f"잔고 부족으로 매수 실패: {e}")
+                else:
+                    logger.error(f"매수 주문 중 오류 발생: {e}")
+                    return
 
     # 직전 캔들이 상승이면 매도 점검
     elif klines[-1].is_bullish:
