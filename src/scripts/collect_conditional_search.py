@@ -130,9 +130,9 @@ async def main(
         records.append(
             {
                 "base_date": r.base_date,
-                "condition_id": r.condition_id,
-                "symbol": r.symbol,
-                "name": r.name,
+                "condition_id": r.condition_id.strip(),
+                "symbol": r.symbol.strip(),
+                "name": r.name.strip(),
                 "price": r.price,
                 "change_sign": r.change_sign,
                 "change_price": r.change_price,
