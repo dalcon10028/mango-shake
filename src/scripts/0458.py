@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 ENTRY_AMOUNT = Decimal("400")
-SYMBOL = "ETHUSDT"
+SYMBOL = "BTCUSDT"
 
 
 @dataclass(frozen=True)
