@@ -133,10 +133,11 @@ async def main(
         and klines[-1].body_size > avg_body_size
     )
 
-    # 매수 조건 2: 전전 음봉 -> 직전 음봉, 직전 음봉 몸통 > 전전 음봉 몸통
+    # 매수 조건 2: 전전 음봉 -> 직전 음봉, 직전 음봉 몸통 > 평균, 직전 음봉 몸통 > 전전 음봉 몸통
     condition2 = (
         klines[-2].is_bearish
         and klines[-1].is_bearish
+        and klines[-1].body_size > avg_body_size
         and klines[-1].body_size > klines[-2].body_size
     )
 
@@ -148,7 +149,7 @@ async def main(
         should_buy = True
     elif condition2:
         logger.info(
-            f"매수 조건 2 충족: 연속 음봉, 직전 음봉(몸통: {klines[-1].body_size}) > 전전 음봉(몸통: {klines[-2].body_size})"
+            f"매수 조건 2 충족: 연속 음봉, 직전 음봉(몸통: {klines[-1].body_size}) > 전전 음봉(몸통: {klines[-2].body_size}) 및 평균({avg_body_size:.4f}) 이상"
         )
         should_buy = True
 
