@@ -222,6 +222,8 @@ async def main(
 
             position = positions[0]
 
+            logger.info(f"현재 포지션: {position}")
+
             avg_price = Decimal(position["openPriceAvg"])
             size = Decimal(position["available"])
 
