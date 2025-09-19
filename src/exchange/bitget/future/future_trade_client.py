@@ -73,7 +73,7 @@ class BitgetFutureTradeClient(SignatureClient):
         trade_side: Optional[str] = None,   # hedge-mode: "open" | "close"
         hold_side: Optional[str] = None,    # hedge-mode: "long" | "short"
         reduce_only: Optional[str] = None,  # one-way: "YES" | "NO"
-        margin_mode: Optional[str] = None,
+        margin_mode: Optional[str] = "crossed",
         margin_coin: Optional[str] = "USDT",
     ):
         """
