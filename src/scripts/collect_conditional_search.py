@@ -44,8 +44,10 @@ class ConditionSearchCollector:
                 await self._handle_cnsrlst(data)
             case {"trnm": "CNSRREQ", "return_code": 0, "data": data, "seq": condition_id}:
                 await self._handle_cnsrreq(condition_id, data)
+            case {"trnm": "CNSRREQ"}:
+                logger.debug("Received CNSRREQ acknowledgment, ignoring.")
             case _:
-                logger.debug("Unhandled message or non-success return_code")
+                logger.debug(f"Unhandled message or non-success return_code: {msg}")
 
     async def _handle_cnsrlst(self, data: List[List[str]]) -> None:
         """조건식 목록 수신 → 내부 상태 저장 + 각 조건식에 대한 검색 요청 발송"""
