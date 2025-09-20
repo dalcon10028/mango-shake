@@ -1,5 +1,10 @@
+import logging
 from functools import cache
+from typing import Optional, Dict, Any
+
 from exchange.bitget.client.bitget_client import BitgetClient
+
+logger = logging.getLogger(__name__)
 
 
 class KiwoomRestClient(BitgetClient):
@@ -33,3 +38,23 @@ class KiwoomRestClient(BitgetClient):
         }
         data = await self.post(path, body)
         return data["token"]
+
+    async def get_daily_candles(self, symbol: str, date: str) -> Optional[Dict[str, Any]]:
+        """일별 주가 요청"""
+        headers = {
+            "authorization": f"Bearer {await self.get_access_token()}",
+            "tr-id": "DOSTKMRKCOND",
+        }
+        params = {
+            "stk_cd": symbol,
+            "qry_dt": date,
+            "indc_tp": "0",
+        }
+        async with self.session.post(
+            f"{self.base_url}/api/dostk/mrkcond", headers=headers, json=params
+        ) as response:
+            if response.status == 200:
+                return await response.json()
+            else:
+                logger.error(f"Error fetching daily candles for {symbol} on {date}: {response.status} {await response.text()}")
+                return None

@@ -1,12 +1,21 @@
-name: Collect Condition Search
+name: Collect Daily Candles(KRX)
 
 on:
   schedule:
-    - cron: '0 12 * * 1-5' # 9:00(KST) PM weekday
-  workflow_dispatch:  # Allow manual trigger
+    - cron: '0 13 * * 1-5' # 11:00(KST) PM weekday
+  workflow_dispatch:
+    inputs:
+      start_date:
+        description: "Start date (YYYY-MM-DD)"
+        required: true
+        default: ""
+      end_date:
+        description: "End date (YYYY-MM-DD)"
+        required: true
+        default: ""
 
 concurrency:
-  group: condition-search-${{ github.ref }}-${{ github.workflow }}
+  group: collect-daily-candles-krx-${{ github.ref }}-${{ github.workflow }}
   cancel-in-progress: true
 
 permissions:
@@ -29,7 +38,7 @@ jobs:
           key: ${{ secrets.GCP_SSH_KEY }}
           port: 22
           script: |
-            ./collect-condition-search.sh
+            ./collect_daily_candles_krx.py
             
 
       - name: Send Slack notification
@@ -40,7 +49,7 @@ jobs:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
           payload: |
             {
-              "text": ":x: Collect Condition Search Failed",
+              "text": ":x: Collect Daily Candles(KRX) Failed",
               "attachments": [
                 {
                   "color": "danger",
