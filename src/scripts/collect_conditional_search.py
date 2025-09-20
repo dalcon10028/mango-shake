@@ -9,6 +9,7 @@ from dependency_injector.wiring import inject, Provide
 from sqlalchemy.dialects.postgresql import insert
 from exchange.kiwoom.rest_client import KiwoomRestClient
 from exchange.kiwoom.ws_client import KiwoomWS
+from model.condition_search_meta import ConditionSearchMeta
 from model.condition_search_result import ConditionSearchResult
 from shared.containers import Container
 from shared.db import get_db
@@ -48,6 +49,22 @@ class ConditionSearchCollector:
 
     async def _handle_cnsrlst(self, data: List[List[str]]) -> None:
         """조건식 목록 수신 → 내부 상태 저장 + 각 조건식에 대한 검색 요청 발송"""
+        meta_records = [{"condition_id": item[0], "name": item[1]} for item in data]
+
+        if meta_records:
+            async with get_db() as session:
+                stmt = insert(ConditionSearchMeta).values(meta_records)
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=["condition_id"],
+                    set_={
+                        "name": stmt.excluded.name,
+                        "updated_at": "CURRENT_TIMESTAMP",
+                    },
+                )
+                await session.execute(stmt)
+                await session.commit()
+            logger.info(f"Upserted {len(meta_records)} condition search meta items.")
+
         for item in data:  # 데모용으로 상위 5개 조건식만 처리
             seq, name = item[0], item[1]
             await self.ws.send(
