@@ -182,6 +182,7 @@ async def main(
                 size=qty,
                 price=price,  # tick-rounded price
                 side="buy",
+                trade_side="open",
                 order_type="limit",
             )
             logger.info(f"매수 주문 결과: {res}")
