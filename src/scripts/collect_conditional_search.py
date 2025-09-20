@@ -165,7 +165,9 @@ async def main(
     await ws_client.disconnect()
     await ws_task
 
-
+    if not records:
+        logger.info("No records to upsert. Exiting.")
+        return
 
     async with get_db() as session:
         stmt = insert(ConditionSearchResult).values(records)
