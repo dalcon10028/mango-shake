@@ -2,11 +2,14 @@ import asyncio
 import json
 import logging
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from typing import List, Optional, Dict, Any
+
+import pytz
 from dependency_injector.wiring import inject, Provide
 from sqlalchemy.dialects.postgresql import insert
+
 from exchange.kiwoom.rest_client import KiwoomRestClient
 from exchange.kiwoom.ws_client import KiwoomWS
 from model.condition_search_meta import ConditionSearchMeta
@@ -143,12 +146,15 @@ async def main(
     # 5) 데모: 5초간 실행 후 종료 (필요 시 취향껏 변경)
     await asyncio.sleep(60)
 
+    kst = pytz.timezone("Asia/Seoul")
+    now_kst = datetime.now(kst)
+
     # Build clean dicts explicitly to avoid ORM internals in __dict__
     records = []
     for r in results:
         records.append(
             {
-                "base_date": r.base_date,
+                "base_date": now_kst.date(),
                 "condition_id": r.condition_id.strip(),
                 "symbol": r.symbol.strip(),
                 "name": r.name.strip(),
