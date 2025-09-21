@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import yaml
 from dataclasses import dataclass
 from decimal import Decimal, ROUND_DOWN
 from typing import List, Tuple
@@ -9,17 +10,18 @@ from dependency_injector.wiring import inject, Provide
 from exchange.bitget import BitgetFutureMarketClient, BitgetFutureTradeClient
 from exchange.bitget.dto.bitget_error import BitgetError, BitgetErrorCode
 from exchange.bitget.future.future_position_client import BitgetFuturePositionClient
+from exchange.bitget.future.future_account_client import BitgetFutureAccountClient
 from shared.containers import Container
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 # 거래 설정
-ENTRY_AMOUNT = Decimal("400")  # 진입 금액 (USDT)
 SYMBOL = "BTCUSDT"
-PROFIT_TARGET_RATE = Decimal("1.05")  # 5% 수익 목표
-PARTIAL_CLOSE_RATIO = Decimal("0.5")  # 50% 부분 청산
-MIN_PROFIT_RATE = Decimal("0.3")  # 최소 수익률 0.3%
+PROFIT_TARGET_RATE = 1.05  # 5% 수익 목표
+PARTIAL_CLOSE_RATIO = 0.5  # 50% 부분 청산
+MIN_PROFIT_RATE = 0.3  # 최소 수익률 0.3%
+DIVISION_COUNT = 7  # 분할 수
 
 
 @dataclass(frozen=True)
@@ -72,10 +74,12 @@ class BitgetTradingStrategy:
         market_client: BitgetFutureMarketClient,
         position_client: BitgetFuturePositionClient,
         trade_client: BitgetFutureTradeClient,
+        account_client: BitgetFutureAccountClient,
     ):
         self.market_client = market_client
         self.position_client = position_client
         self.trade_client = trade_client
+        self.account_client = account_client
         self.specs = self._get_trading_specs()
 
     def _get_trading_specs(self) -> TradingSpecs:
@@ -105,6 +109,54 @@ class BitgetTradingStrategy:
         min_trade_usdt = Decimal(str(spec.get("minTradeUSDT", "0")))
 
         return TradingSpecs(tick, qty_step, min_trade_num, min_trade_usdt)
+
+    async def get_account_equity(self) -> Decimal:
+        """전체 평가금액 조회"""
+        async with self.account_client as client:
+            account = await client.get_accounts(product_type="USDT-FUTURES")
+        
+        if not account:
+            raise ValueError("계좌 정보를 찾을 수 없습니다")
+        
+        # accountEquity: 계좌 총 자산 (포지션 손익 포함)
+        return Decimal(str(account.get("accountEquity", "0")))
+
+    async def get_leverage(self) -> Decimal:
+        """현재 심볼의 레버리지 설정 조회"""
+        try:
+            async with self.account_client as client:
+                leverage_info = await client.get_leverage(
+                    symbol=SYMBOL,
+                    product_type="USDT-FUTURES"
+                )
+            
+            if not leverage_info:
+                logger.warning(f"레버리지 정보를 찾을 수 없습니다. 기본값 1배 사용")
+                return Decimal("1")
+            
+            # 레버리지 배수 반환 (예: "10" -> 10배)
+            leverage = leverage_info.get("leverage", "1")
+            return Decimal(str(leverage))
+        except Exception as e:
+            logger.warning(f"레버리지 조회 실패, 기본값 1배 사용: {e}")
+            return Decimal("1")
+
+    async def calculate_entry_amount(self) -> Decimal:
+        """분할 투자 + 레버리지를 반영한 진입금액 계산"""
+        # 전체 평가금액 조회
+        total_equity = await self.get_account_equity()
+        
+        # 현재 레버리지 조회
+        leverage = await self.get_leverage()
+        
+        # 진입금액 = 전체평가금액 / 분할수 * 레버리지배율
+        entry_amount = (total_equity / Decimal(DIVISION_COUNT)) * leverage
+        
+        logger.info(
+            f"진입금액 계산: 총자산({total_equity}) / 분할수({DIVISION_COUNT}) * 레버리지({leverage}배) = {entry_amount} USDT"
+        )
+        
+        return entry_amount
 
     def _round_to_step(self, value: Decimal, step: Decimal) -> Decimal:
         """스텝 단위로 내림"""
@@ -174,8 +226,11 @@ class BitgetTradingStrategy:
     async def place_buy_order(self, bid_price: Decimal) -> bool:
         """매수 주문 실행"""
         try:
+            # 동적 진입금액 계산
+            entry_amount = await self.calculate_entry_amount()
+            
             # 수량 계산
-            raw_qty = ENTRY_AMOUNT / bid_price
+            raw_qty = entry_amount / bid_price
             qty = self._round_to_step(raw_qty, self.specs.qty_step)
             if qty < self.specs.min_trade_num:
                 qty = self.specs.min_trade_num
@@ -198,7 +253,7 @@ class BitgetTradingStrategy:
                 trade_side="open",
                 order_type="limit",
             )
-            logger.info(f"매수 주문 결과: {result}")
+            logger.info(f"매수 주문 결과 (진입금액: {entry_amount} USDT): {result}")
             return True
 
         except BitgetError as e:
@@ -316,9 +371,10 @@ async def main(
     market_client: BitgetFutureMarketClient = Provide[Container.bitget_future_market_client],
     position_client: BitgetFuturePositionClient = Provide[Container.bitget_future_position_client],
     trade_client: BitgetFutureTradeClient = Provide[Container.bitget_future_trade_client],
+    account_client: BitgetFutureAccountClient = Provide[Container.bitget_future_account_client],
 ):
     """메인 실행 함수"""
-    strategy = BitgetTradingStrategy(market_client, position_client, trade_client)
+    strategy = BitgetTradingStrategy(market_client, position_client, trade_client, account_client)
     await strategy.execute_strategy()
 
 
