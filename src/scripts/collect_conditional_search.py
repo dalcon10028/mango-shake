@@ -66,7 +66,7 @@ class ConditionSearchCollector:
                     index_elements=["condition_id"],
                     set_={
                         "name": stmt.excluded.name,
-                        "updated_at": "CURRENT_TIMESTAMP",
+                        "updated_at": datetime.now(pytz.timezone("Asia/Seoul"))
                     },
                 )
                 await session.execute(stmt)
