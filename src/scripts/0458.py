@@ -267,20 +267,40 @@ class BitgetTradingStrategy:
             position_value_usdt = position_size * mark_price
             
             unrealized_pnl = Decimal(position.get("unrealizedPL", "0"))
-            margin = Decimal(position.get("margin", "0"))
+            margin_size = Decimal(position.get("marginSize", "0"))
+            open_price_avg = Decimal(position.get("openPriceAvg", "0"))
             
-            roe_percentage = (unrealized_pnl / margin * Decimal(100)) if margin > 0 else Decimal(0)
+            # ROE 계산: (미실현손익 / 마진크기) * 100
+            # 마진크기는 실제 투자한 자본금 (레버리지 고려된 초기 투자금)
+            if margin_size > 0:
+                roe_percentage = (unrealized_pnl / margin_size) * Decimal(100)
+            else:
+                # 대안 계산: (현재가 - 진입가) / 진입가 * 100
+                if open_price_avg > 0:
+                    price_change_rate = (mark_price - open_price_avg) / open_price_avg * Decimal(100)
+                    # 롱 포지션인지 숏 포지션인지 확인
+                    hold_side = position.get("holdSide", "long")
+                    roe_percentage = price_change_rate if hold_side == "long" else -price_change_rate
+                else:
+                    roe_percentage = Decimal("0")
             
             pos_info = PositionInfo(
                 position_value_usdt=position_value_usdt,
                 roe_percentage=roe_percentage,
                 size=position_size,
-                margin=margin,
+                margin=margin_size,  # margin 대신 marginSize 사용
                 unrealized_pnl=unrealized_pnl,
                 position_data=position
             )
             
-            logger.debug(f"포지션 정보: {pos_info}")
+            # 디버깅용 상세 로그 추가
+            logger.debug(
+                f"포지션 상세정보: Size({position_size}), MarkPrice({mark_price}), "
+                f"OpenPrice({open_price_avg}), Value({position_value_usdt}), "
+                f"PnL({unrealized_pnl}), MarginSize({margin_size}), "
+                f"ROE({roe_percentage:.2f}%), HoldSide({position.get('holdSide', 'unknown')})"
+            )
+            
             return pos_info
             
         except Exception as e:
@@ -510,31 +530,30 @@ class BitgetTradingStrategy:
 
             logger.info(f"[{execution_id}] 매도 조건 검사 시작: {position_info}")
 
-            avg_price = Decimal(position_info.position_data["openPriceAvg"])
             size = Decimal(position_info.position_data["available"])
 
             if size <= 0:
                 logger.debug(f"[{execution_id}] 청산 가능한 포지션 크기 없음: {size}")
                 return False
 
-            # 수익률 계산
+            # 수익률 분석 - ROE를 일관되게 사용
             avg_change_rate = sum(k.change_rate for k in candles[-20:]) / Decimal(20)
-            current_gain_rate = (ask_price - avg_price) / avg_price * Decimal(100)
+            current_roe = position_info.roe_percentage  # 이미 계산된 정확한 ROE 사용
 
             logger.info(
-                f"[{execution_id}] 수익률 분석: 현재수익률({current_gain_rate:.4f}%), "
+                f"[{execution_id}] 수익률 분석: ROE({current_roe:.4f}%), "
                 f"20개평균변동률({avg_change_rate:.4f}%), 최소수익률({self.config.min_profit_rate}%)"
             )
 
-            # 매도 조건: 현재 수익률이 평균 변동률 이상이고 최소 수익률 이상
-            if current_gain_rate >= avg_change_rate and current_gain_rate >= self.config.min_profit_rate:
-                reason = (f"수익실현 조건충족: 현재수익률({current_gain_rate:.4f}%) >= "
+            # 매도 조건: ROE가 평균 변동률 이상이고 최소 수익률 이상
+            if current_roe >= avg_change_rate and current_roe >= self.config.min_profit_rate:
+                reason = (f"수익실현 조건충족: ROE({current_roe:.4f}%) >= "
                          f"평균변동률({avg_change_rate:.4f}%) && >= 최소수익률({self.config.min_profit_rate}%)")
                 logger.info(f"[{execution_id}] {reason}")
                 return await self._execute_partial_close(position_info.position_data, ask_price, size, execution_id)
             else:
                 logger.info(
-                    f"[{execution_id}] 매도 조건 미충족: 현재수익률({current_gain_rate:.4f}%) < "
+                    f"[{execution_id}] 매도 조건 미충족: ROE({current_roe:.4f}%) < "
                     f"평균변동률({avg_change_rate:.4f}%) 또는 < 최소수익률({self.config.min_profit_rate}%)"
                 )
                 return False
