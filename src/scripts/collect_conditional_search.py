@@ -43,6 +43,9 @@ class ConditionSearchCollector:
     async def on_msg(self, msg: Dict[str, Any]) -> None:
         logger.info(f"Received message: {msg}")
         match msg:
+            case {"trnm": "PING"}:
+                await self.ws.send(msg)
+                logger.debug("Echoed PING message back to server.")
             case {"trnm": "CNSRLST", "return_code": 0, "data": data}:
                 await self._handle_cnsrlst(data)
             case {"trnm": "CNSRREQ", "return_code": 0, "data": data, "seq": condition_id}:
