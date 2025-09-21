@@ -158,6 +158,86 @@ class BitgetTradingStrategy:
         
         return entry_amount
 
+    async def get_current_position_info(self) -> dict:
+        """현재 포지션 정보 조회"""
+        async with self.position_client as client:
+            positions = await client.get_position(
+                symbol=SYMBOL, product_type="USDT-FUTURES"
+            )
+        
+        if not positions:
+            return {}
+        
+        position = positions[0]
+        
+        # 포지션 사이즈의 USDT 가치 계산
+        position_size = Decimal(position.get("total", "0"))
+        mark_price = Decimal(position.get("markPrice", "0"))
+        position_value_usdt = position_size * mark_price
+        
+        # ROE 계산 (이미 API에서 제공하는 경우 사용, 없으면 직접 계산)
+        unrealized_pnl = Decimal(position.get("unrealizedPL", "0"))
+        margin = Decimal(position.get("margin", "0"))
+        
+        # ROE = (미실현손익 / 마진) * 100
+        roe_percentage = (unrealized_pnl / margin * Decimal(100)) if margin > 0 else Decimal(0)
+        
+        return {
+            "position_value_usdt": position_value_usdt,
+            "roe_percentage": roe_percentage,
+            "size": position_size,
+            "margin": margin,
+            "unrealized_pnl": unrealized_pnl,
+            "position_data": position
+        }
+
+    async def check_additional_entry_conditions(self) -> bool:
+        """추가 진입 조건 검사"""
+        # 전체 평가금액 조회
+        total_equity = await self.get_account_equity()
+        
+        # 현재 포지션 정보 조회
+        position_info = await self.get_current_position_info()
+        
+        if not position_info:
+            # 포지션이 없으면 진입 가능
+            logger.info("포지션 없음 - 진입 가능")
+            return True
+        
+        position_value = position_info["position_value_usdt"]
+        roe = position_info["roe_percentage"]
+        
+        # 포지션 비율 계산 (현재 포지션 가치 / 전체 평가금액)
+        position_ratio = (position_value / total_equity) * Decimal(100)
+        
+        logger.info(
+            f"포지션 체크: 포지션비율({position_ratio:.2f}%), ROE({roe:.2f}%), "
+            f"포지션가치({position_value} USDT), 총자산({total_equity} USDT)"
+        )
+        
+        # 조건 1: 포지션이 전체 평가액의 50% 이상인 경우
+        if position_ratio >= Decimal(50):
+            if roe <= Decimal(-30):
+                logger.info(f"추가 진입 가능: 포지션비율 {position_ratio:.2f}% >= 50% && ROE {roe:.2f}% <= -30%")
+                return True
+            else:
+                logger.info(f"추가 진입 불가: 포지션비율 {position_ratio:.2f}% >= 50% 이지만 ROE {roe:.2f}% > -30%")
+                return False
+        
+        # 조건 2: 포지션이 전체 평가액의 40% 이상인 경우
+        elif position_ratio >= Decimal(40):
+            if roe <= Decimal(-20):
+                logger.info(f"추가 진입 가능: 포지션비율 {position_ratio:.2f}% >= 40% && ROE {roe:.2f}% <= -20%")
+                return True
+            else:
+                logger.info(f"추가 진입 불가: 포지션비율 {position_ratio:.2f}% >= 40% 이지만 ROE {roe:.2f}% > -20%")
+                return False
+        
+        # 조건 3: 포지션이 40% 미만인 경우 자유롭게 진입 가능
+        else:
+            logger.info(f"추가 진입 가능: 포지션비율 {position_ratio:.2f}% < 40%")
+            return True
+
     def _round_to_step(self, value: Decimal, step: Decimal) -> Decimal:
         """스텝 단위로 내림"""
         if step == 0:
@@ -188,13 +268,14 @@ class BitgetTradingStrategy:
         ask_price = Decimal(ticker["data"][0]["askPr"])
         return bid_price, ask_price
 
-    def check_buy_conditions(self, candles: List[Candle]) -> bool:
-        """매수 조건 검사"""
+    async def check_buy_conditions(self, candles: List[Candle]) -> bool:
+        """매수 조건 검사 (캔들 패턴 + 포지션 진입 조건)"""
         if len(candles) < 3:
             return False
 
         avg_body_size = sum(k.body_size for k in candles) / Decimal(len(candles))
 
+        # 기본 캔들 패턴 조건 검사
         # 조건 1: 전전 양봉 -> 직전 음봉, 직전 음봉 몸통 > 평균
         condition1 = (
             candles[-2].is_bullish
@@ -210,18 +291,31 @@ class BitgetTradingStrategy:
             and candles[-1].body_size > candles[-2].body_size
         )
 
+        # 기본 캔들 패턴 조건이 충족되지 않으면 바로 종료
+        pattern_matched = False
         if condition1:
             logger.info(
                 f"매수 조건 1 충족: 전전 양봉, 직전 음봉(몸통: {candles[-1].body_size} > 평균: {avg_body_size:.4f})"
             )
-            return True
+            pattern_matched = True
         elif condition2:
             logger.info(
                 f"매수 조건 2 충족: 연속 음봉, 직전 음봉(몸통: {candles[-1].body_size}) > 전전 음봉(몸통: {candles[-2].body_size}) 및 평균({avg_body_size:.4f}) 이상"
             )
-            return True
+            pattern_matched = True
 
-        return False
+        if not pattern_matched:
+            return False
+
+        # 캔들 패턴이 맞으면 추가 진입 조건 검사
+        additional_entry_allowed = await self.check_additional_entry_conditions()
+        
+        if not additional_entry_allowed:
+            logger.info("캔들 패턴은 충족하지만 포지션 진입 조건 미충족으로 매수 보류")
+            return False
+
+        logger.info("모든 매수 조건 충족 - 매수 진행")
+        return True
 
     async def place_buy_order(self, bid_price: Decimal) -> bool:
         """매수 주문 실행"""
@@ -356,7 +450,7 @@ class BitgetTradingStrategy:
         bid_price, ask_price = await self.get_ticker_price()
 
         # 3. 매수 조건 검사
-        if self.check_buy_conditions(candles):
+        if await self.check_buy_conditions(candles):
             await self.place_buy_order(bid_price)
         # 4. 매도 조건 검사 (상승 캔들인 경우)
         elif candles[-1].is_bullish:
