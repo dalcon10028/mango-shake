@@ -45,11 +45,7 @@ class ConditionSearchCollector:
         logger.info(f"Received message: {msg}")
         match msg:
             case {"trnm": "PING"}:
-                try:
-                    await self.ws.send(json.dumps(msg))
-                except TypeError:
-                    # send가 dict를 허용하면 dict로 전송
-                    await self.ws.send(msg)
+                await self.ws.send(msg)
                 logger.debug("Echoed PING message back to server.")
             case {"trnm": "CNSRLST", "return_code": 0, "data": data}:
                 await self._handle_cnsrlst(data)
@@ -71,8 +67,6 @@ class ConditionSearchCollector:
                     index_elements=["condition_id"],
                     set_={
                         "name": stmt.excluded.name,
-                        # updated_at에 문자열('CURRENT_TIMESTAMP')을 전달해 asyncpg 에러가 발생하므로
-                        # SQL 함수(func.now())로 변경하여 DB에서 타임스탬프를 생성하도록 함
                         "updated_at": func.now(),
                     },
                 )

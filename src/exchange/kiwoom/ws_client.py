@@ -75,14 +75,13 @@ class KiwoomWS:
                         await self.disconnect()
                         break
                     logger.info("로그인 성공")
-                elif trnm == "PING":
-                    # 서버가 보낸 PING 은 그대로 에코
-                    await self.send(msg)
+                    continue  # 로그인 메시지는 on_message로 전달하지 않음
+
+                # PING을 포함한 모든 메시지를 콜백으로 전달
+                if self.on_message:
+                    await self.on_message(msg)
                 else:
-                    if self.on_message:
-                        await self.on_message(msg)
-                    else:
-                        logger.info(f"RECV: {msg}")
+                    logger.info(f"RECV: {msg}")
         except websockets.ConnectionClosed:
             logger.warning("Connection closed by server")
             self.connected = False
