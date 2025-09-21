@@ -10,8 +10,11 @@ def _mask_sensitive_headers(headers: dict) -> dict:
     """Return a copy of headers with sensitive values masked."""
     masked = {}
     for k, v in headers.items():
-        upper_k = k.upper()
-        if upper_k in ("ACCESS-KEY", "ACCESS-SIGN", "ACCESS-PASSPHRASE"):
+        # Skip None keys or values
+        if k is None or v is None:
+            continue
+        upper_k = str(k).upper()
+        if upper_k in ("ACCESS-KEY", "ACCESS-SIGN", "ACCESS-PASSPHRASE", "AUTHORIZATION"):
             # Fully mask sensitive values
             masked[k] = "****"
         else:
@@ -45,11 +48,16 @@ class TracingClientSession(aiohttp.ClientSession):
         kwargs["trace_request_ctx"] = trace_request_ctx
 
         headers = kwargs.get("headers", {})
+        
+        # Clean headers: remove None keys and values
+        if headers:
+            cleaned_headers = {k: v for k, v in headers.items() if k is not None and v is not None}
+            kwargs["headers"] = cleaned_headers
+            headers = cleaned_headers
 
         # Filter out None values from params to avoid sending empty parameters
         if "params" in kwargs and kwargs["params"]:
             kwargs["params"] = {k: v for k, v in kwargs["params"].items() if v is not None}
-
 
         # Mask sensitive header values before logging
         masked_headers = _mask_sensitive_headers(headers)

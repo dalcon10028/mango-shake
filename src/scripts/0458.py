@@ -1,9 +1,3 @@
-"""
-Bitget 선물 거래 자동화 스크립트
-- 1시간봉 캔들 분석을 통한 자동 매수/매도
-- 조건: 음봉 패턴 매수, 상승 시 부분 청산
-"""
-
 import asyncio
 import logging
 from dataclasses import dataclass
