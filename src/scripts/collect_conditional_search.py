@@ -147,8 +147,7 @@ async def main(
     await asyncio.sleep(1)
     await ws_client.send({"trnm": "CNSRLST"})
 
-    # 5) 데모: 5초간 실행 후 종료 (필요 시 취향껏 변경)
-    await asyncio.sleep(60)
+    await asyncio.sleep(180)
 
     kst = pytz.timezone("Asia/Seoul")
     now_kst = datetime.now(kst)
