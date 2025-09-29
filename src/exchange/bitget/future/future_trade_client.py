@@ -72,9 +72,10 @@ class BitgetFutureTradeClient(SignatureClient):
         preset_sl_price: Optional[Decimal] = None,
         trade_side: Optional[str] = None,   # hedge-mode: "open" | "close"
         hold_side: Optional[str] = None,    # hedge-mode: "long" | "short"
-        reduce_only: Optional[str] = None,  # one-way: "YES" | "NO"
         margin_mode: Optional[str] = "crossed",
         margin_coin: Optional[str] = "USDT",
+        force: Optional[str] = None,        # limit 주문일 때 gtc/ioc/fok/post_only
+        client_oid: Optional[str] = None,   # 주문 식별용
     ):
         """
         Place a new order on Bitget.
@@ -82,6 +83,13 @@ class BitgetFutureTradeClient(SignatureClient):
         side: buy/sell (포지션 방향 반대 청산 시 사용)
         """
         path = "/api/v2/mix/order/place-order"
+        if order_type == "limit" and price is None:
+            raise ValueError("limit 주문에는 price가 필요합니다")
+
+        # limit 주문이면 force를 gtc로 설정
+        if order_type == "limit" and force is None:
+            force = "gtc"
+
         body = {
             "symbol": symbol, "productType": product_type,
             **({"marginMode": margin_mode} if margin_mode else {}),
@@ -90,7 +98,8 @@ class BitgetFutureTradeClient(SignatureClient):
             **({"price": str(price)} if (order_type=="limit" and price is not None) else {}),
             **({"tradeSide": trade_side} if trade_side else {}),
             **({"holdSide": hold_side} if hold_side else {}),
-            **({"reduceOnly": reduce_only} if reduce_only else {}),
+            **({"force": force} if (order_type=="limit" and force) else {}),
+            **({"clientOid": client_oid} if client_oid else {}),
             **({"presetStopSurplusPrice": str(preset_tp_price)} if preset_tp_price is not None else {}),
             **({"presetStopLossPrice": str(preset_sl_price)} if preset_sl_price is not None else {}),
         }
@@ -132,8 +141,11 @@ class BitgetFutureTradeClient(SignatureClient):
         hold_side: str = "long",  # 청산하려는 보유 포지션 방향
         fraction: float = 0.5,
         order_type: str = "market",
+        price: Optional[Decimal] = None,  # limit 주문 시 필수
         size_step: Optional[Decimal] = None,  # 규격 없으면 그대로 사용
         min_size: Optional[Decimal] = None,  # 최소 주문수량 체크용
+        force: Optional[str] = None,  # limit 주문 시 gtc/ioc/fok/post_only
+        client_oid: Optional[str] = None,  # 주문 식별용
     ):
         """
         현재 포지션의 fraction(예: 0.5) 만큼 부분 청산.
@@ -142,6 +154,9 @@ class BitgetFutureTradeClient(SignatureClient):
         3) size * fraction 계산 후 step / min 반올림
         4) 반대 side (long->sell, short->buy) 로 tradeSide='close' 주문
         """
+        import logging
+        logger = logging.getLogger("bitget.partial_close_position")
+
         if not (0 < fraction <= 1):
             raise ValueError("fraction 은 0 ~ 1 사이 여야 합니다")
 
@@ -149,14 +164,16 @@ class BitgetFutureTradeClient(SignatureClient):
         path = "/api/v2/mix/position/single-position"
         params = {"symbol": symbol, "productType": product_type, "marginCoin": "USDT"}
         res = await self.get(path, params=params)
+        logger.info(f"[포지션조회] symbol={symbol}, res={res}")
         data = res.get("data")
         if not data:
+            logger.warning(f"[부분청산] 포지션 없음: symbol={symbol}, hold_side={hold_side}")
             return {"status": "no_position"}
 
         positions_raw = data if isinstance(data, list) else [data]
-        # dict 타입만 필터
         positions = [p for p in positions_raw if isinstance(p, dict)]
         if not positions:
+            logger.warning(f"[부분청산] 포지션 데이터 형식 오류: {data}")
             return {"status": "invalid_position_format"}
 
         target = None
@@ -168,14 +185,17 @@ class BitgetFutureTradeClient(SignatureClient):
             except Exception:
                 continue
         if target is None:
+            logger.warning(f"[부분청산] 해당 hold_side 포지션 없음: {hold_side}")
             return {"status": "no_target_side"}
 
         total_str = target.get("total", "0") if isinstance(target, dict) else "0"
         try:
             total = Decimal(total_str)
         except Exception:
+            logger.warning(f"[부분청산] total 파싱 오류: {total_str}")
             return {"status": "invalid_total"}
         if total <= 0:
+            logger.warning(f"[부분청산] 포지션 수량 0: {total}")
             return {"status": "empty"}
 
         close_size = total * Decimal(str(fraction))
@@ -189,16 +209,26 @@ class BitgetFutureTradeClient(SignatureClient):
             )
             close_size = quant_factor * size_step
         if min_size and close_size < min_size:
+            logger.warning(f"[부분청산] 최소 주문수량 미만: {close_size} < {min_size}")
             return {"status": "below_min_size"}
         if close_size <= 0:
+            logger.warning(f"[부분청산] 계산된 청산수량 0")
             return {"status": "computed_zero"}
+
+        # limit 주문이면 price 필수
+        if order_type == "limit" and price is None:
+            raise ValueError("limit 주문에는 price가 필요합니다")
+
         side = "sell" if hold_side == "long" else "buy"
+        logger.info(f"[부분청산] 주문 파라미터: symbol={symbol}, size={close_size}, side={side}, order_type={order_type}, price={price}, tradeSide=close, holdSide={hold_side}, force={force}")
+
         return await self.place_order(
             symbol=symbol,
             product_type=product_type,
             size=close_size,
             side=side,
             order_type=order_type,
+            price=price,
             trade_side="close",                # hedge-mode close
             hold_side=hold_side,               # specify long/short explicitly
             margin_mode=(
@@ -209,4 +239,6 @@ class BitgetFutureTradeClient(SignatureClient):
             margin_coin=(
                 target.get("marginCoin", "USDT") if isinstance(target, dict) else "USDT"
             ),
+            force=force,
+            client_oid=client_oid,
         )
