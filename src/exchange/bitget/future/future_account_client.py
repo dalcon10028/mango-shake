@@ -27,7 +27,7 @@ class BitgetFutureAccountClient(SignatureClient):
         res = await self.get(path, params=params)
         return next(filter(lambda x: x["marginCoin"] == "USDT", res["data"]), {})
 
-    async def get_leverage(
+    async def get_account(
         self,
         symbol: str,
         product_type: str,
@@ -37,7 +37,7 @@ class BitgetFutureAccountClient(SignatureClient):
         Get leverage setting for a specific symbol.
         Returns leverage configuration for the symbol.
         """
-        path = "/api/v2/mix/account/account-leverage"
+        path = "/api/v2/mix/account/account"
         params = {
             "symbol": symbol,
             "productType": product_type,

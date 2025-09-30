@@ -206,7 +206,7 @@ class BitgetTradingStrategy:
         """현재 심볼의 레버리지 설정 조회"""
         try:
             async with self.account_client as client:
-                leverage_info = await client.get_leverage(
+                leverage_info = await client.get_account(
                     symbol=self.config.symbol,
                     product_type=TradingConstants.PRODUCT_TYPE
                 )
@@ -215,7 +215,7 @@ class BitgetTradingStrategy:
                 logger.warning(f"레버리지 정보를 찾을 수 없습니다. 기본값 1배 사용")
                 return Decimal("1")
             
-            leverage = Decimal(str(leverage_info.get("leverage", "1")))
+            leverage = Decimal(str(leverage_info.get("crossedMarginLeverage", "1")))
             logger.debug(f"현재 레버리지: {leverage}배")
             return leverage
             
@@ -264,7 +264,7 @@ class BitgetTradingStrategy:
             
             position_size = Decimal(position.get("total", "0"))
             mark_price = Decimal(position.get("markPrice", "0"))
-            position_value_usdt = position_size * mark_price
+            position_value_usdt = position_size * mark_price / (await self.get_leverage())
             
             unrealized_pnl = Decimal(position.get("unrealizedPL", "0"))
             margin_size = Decimal(position.get("marginSize", "0"))
