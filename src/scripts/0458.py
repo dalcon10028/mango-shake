@@ -188,8 +188,7 @@ class BitgetTradingStrategy:
     async def get_account_equity(self) -> Decimal:
         """전체 평가금액 조회"""
         try:
-            async with self.account_client as client:
-                account = await client.get_accounts(product_type=TradingConstants.PRODUCT_TYPE)
+            account = await self.account_client.get_accounts(product_type=TradingConstants.PRODUCT_TYPE)
             
             if not account:
                 raise ValueError("계좌 정보를 찾을 수 없습니다")
@@ -205,11 +204,10 @@ class BitgetTradingStrategy:
     async def get_leverage(self) -> Decimal:
         """현재 심볼의 레버리지 설정 조회"""
         try:
-            async with self.account_client as client:
-                leverage_info = await client.get_account(
-                    symbol=self.config.symbol,
-                    product_type=TradingConstants.PRODUCT_TYPE
-                )
+            leverage_info = await self.account_client.get_account(
+                symbol=self.config.symbol,
+                product_type=TradingConstants.PRODUCT_TYPE
+            )
             
             if not leverage_info:
                 logger.warning(f"레버리지 정보를 찾을 수 없습니다. 기본값 1배 사용")
