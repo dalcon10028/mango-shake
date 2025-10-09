@@ -26,7 +26,7 @@ class TradingConstants:
     ROE_MID_THRESHOLD = Decimal("-20")             # -20%
     MIN_CANDLES_REQUIRED = 3
     KLINE_LIMIT = 20
-    GRANULARITY = "1H"
+    GRANULARITY = "4H"
     PRODUCT_TYPE = "USDT-FUTURES"
 
 
