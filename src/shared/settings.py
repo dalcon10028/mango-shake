@@ -8,7 +8,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Strategy0458Settings(BaseModel):
     """거래 전략 설정"""
     division_count: int = 5
-    symbol: str = 'BTCUSDT'
+    symbol: str = 'SOLUSDT'
     profit_target_rate: float = 1.05
     partial_close_ratio: float = 0.5
     min_profit_rate: float = 0.3
