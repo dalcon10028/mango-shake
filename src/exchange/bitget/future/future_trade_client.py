@@ -72,7 +72,7 @@ class BitgetFutureTradeClient(SignatureClient):
         preset_sl_price: Optional[Decimal] = None,
         trade_side: Optional[str] = None,   # hedge-mode: "open" | "close"
         hold_side: Optional[str] = None,    # hedge-mode: "long" | "short"
-        margin_mode: Optional[str] = "crossed",
+        margin_mode: Optional[str] = "isolated",  # isolated/crossed
         margin_coin: Optional[str] = "USDT",
         force: Optional[str] = None,        # limit 주문일 때 gtc/ioc/fok/post_only
         client_oid: Optional[str] = None,   # 주문 식별용
@@ -232,9 +232,9 @@ class BitgetFutureTradeClient(SignatureClient):
             trade_side="close",                # hedge-mode close
             hold_side=hold_side,               # specify long/short explicitly
             margin_mode=(
-                target.get("marginMode", "crossed")
+                target.get("marginMode", "isolated")
                 if isinstance(target, dict)
-                else "crossed"
+                else "isolated"
             ),
             margin_coin=(
                 target.get("marginCoin", "USDT") if isinstance(target, dict) else "USDT"

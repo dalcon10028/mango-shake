@@ -212,8 +212,8 @@ class BitgetTradingStrategy:
             if not leverage_info:
                 logger.warning(f"레버리지 정보를 찾을 수 없습니다. 기본값 1배 사용")
                 return Decimal("1")
-            
-            leverage = Decimal(str(leverage_info.get("crossedMarginLeverage", "1")))
+
+            leverage = Decimal(str(leverage_info.get("isolatedMarginLeverage", "1")))
             logger.debug(f"현재 레버리지: {leverage}배")
             return leverage
             
@@ -563,7 +563,7 @@ class BitgetTradingStrategy:
     async def _execute_partial_close(self, position: dict, ask_price: Decimal, size: Decimal, execution_id: str) -> bool:
         """부분 청산 실행"""
         try:
-            margin_mode = (position.get("marginMode") or "crossed").lower()
+            margin_mode = (position.get("marginMode") or "isolated").lower()
             hold_side = (position.get("holdSide") or "long").lower()
             limit_price = self._round_to_step(ask_price, self.specs.tick)
             close_size = self._round_to_step(size * self.config.partial_close_ratio, self.specs.qty_step)
